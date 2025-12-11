@@ -2,3 +2,104 @@
  * All of the CSS for your admin-specific functionality should be
  * included in this file.
  */
+
+/* Multisite Backup Admin Styles */
+.multisite-backup-container {
+  margin-top: 20px;
+}
+
+.postbox-header h2.hndle {
+  margin-left: 12px;
+  padding-left: 0;
+}
+
+.tab-content {
+  display: none;
+  margin-top: 20px;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+.site-selection {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  padding: 10px;
+  background: #fafafa;
+}
+
+.site-selection-header {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ddd;
+}
+
+.site-item {
+  display: block;
+  padding: 8px;
+  margin: 2px 0;
+  background: white;
+  border: 1px solid #ddd;
+  cursor: pointer;
+}
+
+.site-item:hover {
+  background: #f0f0f1;
+}
+
+.site-info {
+  margin-left: 20px;
+  display: inline-block;
+}
+
+.site-url {
+  color: #666;
+  font-size: 12px;
+  display: block;
+}
+
+.backup-type {
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.backup-type-full {
+  background: #d4edda;
+  color: #155724;
+}
+
+.backup-type-database {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.backup-type-files {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status {
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.status-completed {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-failed {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.status-in-progress {
+  background: #fff3cd;
+  color: #856404;
+}

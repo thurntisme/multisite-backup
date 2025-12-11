@@ -20,7 +20,8 @@
  * @subpackage Multisite_Backup/admin
  * @author     Thủy Nguyễn Thế <nguyenthethuy.qnam@gmail.com>
  */
-class Multisite_Backup_Admin {
+class Multisite_Backup_Admin
+{
 
 	/**
 	 * The ID of this plugin.
@@ -47,7 +48,8 @@ class Multisite_Backup_Admin {
 	 * @param      string    $plugin_name       The name of this plugin.
 	 * @param      string    $version    The version of this plugin.
 	 */
-	public function __construct( $plugin_name, $version ) {
+	public function __construct($plugin_name, $version)
+	{
 
 		$this->plugin_name = $plugin_name;
 		$this->version = $version;
@@ -59,7 +61,8 @@ class Multisite_Backup_Admin {
 	 *
 	 * @since    1.0.0
 	 */
-	public function enqueue_styles() {
+	public function enqueue_styles()
+	{
 
 		/**
 		 * This function is provided for demonstration purposes only.
@@ -73,7 +76,7 @@ class Multisite_Backup_Admin {
 		 * class.
 		 */
 
-		wp_enqueue_style( $this->plugin_name, plugin_dir_url( __FILE__ ) . 'css/multisite-backup-admin.css', array(), $this->version, 'all' );
+		wp_enqueue_style($this->plugin_name, plugin_dir_url(__FILE__) . 'css/multisite-backup-admin.css', array(), $this->version, 'all');
 
 	}
 
@@ -82,7 +85,8 @@ class Multisite_Backup_Admin {
 	 *
 	 * @since    1.0.0
 	 */
-	public function enqueue_scripts() {
+	public function enqueue_scripts()
+	{
 
 		/**
 		 * This function is provided for demonstration purposes only.
@@ -96,8 +100,26 @@ class Multisite_Backup_Admin {
 		 * class.
 		 */
 
-		wp_enqueue_script( $this->plugin_name, plugin_dir_url( __FILE__ ) . 'js/multisite-backup-admin.js', array( 'jquery' ), $this->version, false );
+		wp_enqueue_script($this->plugin_name, plugin_dir_url(__FILE__) . 'js/multisite-backup-admin.js', array('jquery'), $this->version, false);
 
+	}
+
+	public function register_multisite_backup_menu()
+	{
+		add_menu_page(
+			'Multisite Backup',
+			'Multisite Backup',
+			'manage_options',
+			'multisite-backup',
+			array($this, 'multisite_backup_page_render'),
+			'dashicons-database',
+			6
+		);
+	}
+
+	public function multisite_backup_page_render()
+	{
+		include_once 'partials/multisite-backup-admin-display.php';
 	}
 
 }

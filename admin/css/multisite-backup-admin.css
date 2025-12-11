@@ -198,3 +198,75 @@
     transform: rotate(360deg);
   }
 }
+
+/* Backup Scanning Styles */
+.scanning-indicator {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  background: #fff3cd;
+  border-radius: 5px;
+  border-left: 4px solid #ffc107;
+}
+
+.scanning-indicator .spinner {
+  margin-right: 10px;
+  margin-top: 0;
+}
+
+.backup-scan-results {
+  margin-top: 15px;
+}
+
+.scan-status-valid {
+  background: #d4edda;
+  color: #155724;
+  padding: 10px;
+  border-radius: 5px;
+  border-left: 4px solid #28a745;
+}
+
+.scan-status-invalid {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 10px;
+  border-radius: 5px;
+  border-left: 4px solid #dc3545;
+}
+
+.scan-warnings {
+  background: #fff3cd;
+  color: #856404;
+  padding: 10px;
+  border-radius: 5px;
+  border-left: 4px solid #ffc107;
+  margin-top: 10px;
+}
+
+.scan-errors {
+  background: #f8d7da;
+  color: #721c24;
+  padding: 10px;
+  border-radius: 5px;
+  border-left: 4px solid #dc3545;
+  margin-top: 10px;
+}
+
+.backup-components-list {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+.backup-components-list li {
+  padding: 5px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.backup-components-list li:last-child {
+  border-bottom: none;
+}
+
+.backup-components-list li:before {
+  content: "📦 ";
+  margin-right: 5px;
+}

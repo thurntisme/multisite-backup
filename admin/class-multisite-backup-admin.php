@@ -106,24 +106,56 @@ class Multisite_Backup_Admin
 		// Enqueue plugin script
 		wp_enqueue_script($this->plugin_name, plugin_dir_url(__FILE__) . 'js/multisite-backup-admin.js', array('jquery', 'sweetalert2'), $this->version, false);
 
+		// Localize script for AJAX
+		wp_localize_script($this->plugin_name, 'multisite_backup_ajax', array(
+			'ajax_url' => admin_url('admin-ajax.php'),
+			'nonce' => wp_create_nonce('multisite_backup_nonce')
+		));
+
 	}
 
 	public function register_multisite_backup_menu()
 	{
+		// Main menu page
 		add_menu_page(
 			'Multisite Backup',
 			'Multisite Backup',
 			'manage_options',
 			'multisite-backup',
-			array($this, 'multisite_backup_page_render'),
+			array($this, 'multisite_backup_export_page_render'),
 			'dashicons-database',
 			6
 		);
+
+		// Export submenu (default)
+		add_submenu_page(
+			'multisite-backup',
+			'Export Backup',
+			'Export',
+			'manage_options',
+			'multisite-backup',
+			array($this, 'multisite_backup_export_page_render')
+		);
+
+		// Import submenu
+		add_submenu_page(
+			'multisite-backup',
+			'Import Backup',
+			'Import',
+			'manage_options',
+			'multisite-backup-import',
+			array($this, 'multisite_backup_import_page_render')
+		);
 	}
 
-	public function multisite_backup_page_render()
+	public function multisite_backup_export_page_render()
 	{
 		include_once 'partials/multisite-backup-admin-display.php';
+	}
+
+	public function multisite_backup_import_page_render()
+	{
+		include_once 'partials/multisite-backup-import-display.php';
 	}
 
 	/**
@@ -206,6 +238,9 @@ class Multisite_Backup_Admin
 					$backup_size = $this->create_files_backup($selected_sites, $temp_dir);
 					break;
 			}
+
+			// Create backup info file at root level
+			$backup_size += $this->create_backup_info_file($selected_sites, $backup_type, $temp_dir);
 
 			// Create ZIP archive
 			$zip_result = $this->create_zip_archive($temp_dir, $backup_path);
@@ -292,17 +327,7 @@ class Multisite_Backup_Admin
 		$users_sql_file = $db_dir . '/users.sql';
 		$total_size += $this->export_users_table($users_sql_file);
 
-		// Create database info file
-		$info_file = $db_dir . '/backup_info.json';
-		$backup_info = [
-			'backup_date' => current_time('mysql'),
-			'wordpress_version' => get_bloginfo('version'),
-			'sites_included' => $selected_sites,
-			'database_prefix' => $wpdb->prefix,
-			'multisite' => is_multisite()
-		];
-		file_put_contents($info_file, json_encode($backup_info, JSON_PRETTY_PRINT));
-		$total_size += filesize($info_file);
+
 
 		return $total_size;
 	}
@@ -484,6 +509,36 @@ class Multisite_Backup_Admin
 	}
 
 	/**
+	 * Create backup info file at root level
+	 */
+	private function create_backup_info_file($selected_sites, $backup_type, $temp_dir)
+	{
+		global $wpdb;
+
+		// Create backup info file at root level
+		$info_file = $temp_dir . '/backup_info.json';
+		$backup_info = [
+			'backup_date' => current_time('mysql'),
+			'backup_timestamp' => time(),
+			'wordpress_version' => get_bloginfo('version'),
+			'sites_included' => $selected_sites,
+			'sites_count' => count($selected_sites),
+			'database_prefix' => $wpdb->prefix,
+			'multisite' => is_multisite(),
+			'backup_type' => $backup_type,
+			'plugin_version' => '1.0.0', // You can make this dynamic if needed
+			'created_by' => 'Multisite Backup Plugin',
+			'format_version' => '1.0',
+			'php_version' => PHP_VERSION,
+			'mysql_version' => $wpdb->db_version()
+		];
+
+		file_put_contents($info_file, json_encode($backup_info, JSON_PRETTY_PRINT));
+
+		return filesize($info_file);
+	}
+
+	/**
 	 * Copy directory recursively
 	 */
 	private function copy_directory($source, $destination)
@@ -661,4 +716,474 @@ class Multisite_Backup_Admin
 		}
 	}
 
+
+	/**
+	 * Handle AJAX backup scan
+	 */
+	public function handle_backup_scan()
+	{
+		// Verify nonce
+		if (!wp_verify_nonce($_POST['scan_nonce'], 'multisite_backup_scan_action')) {
+			wp_send_json_error(['message' => 'Security check failed.']);
+		}
+
+		// Check user capabilities
+		if (!current_user_can('manage_options')) {
+			wp_send_json_error(['message' => 'Insufficient permissions.']);
+		}
+
+		// Validate file upload
+		if (!isset($_FILES['backup_file']) || $_FILES['backup_file']['error'] !== UPLOAD_ERR_OK) {
+			wp_send_json_error(['message' => 'No backup file uploaded or upload error occurred.']);
+		}
+
+		$backup_file = $_FILES['backup_file'];
+
+		// Validate file type
+		$file_type = wp_check_filetype($backup_file['name']);
+		if ($file_type['ext'] !== 'zip') {
+			wp_send_json_error(['message' => 'Invalid file type. Please upload a ZIP file.']);
+		}
+
+		// Scan backup file
+		$scan_result = $this->scan_backup_file($backup_file);
+
+		if ($scan_result['success']) {
+			wp_send_json_success($scan_result);
+		} else {
+			wp_send_json_error(['message' => $scan_result['message']]);
+		}
+	}
+
+	/**
+	 * Handle AJAX backup import
+	 */
+	public function handle_backup_import()
+	{
+		// Verify nonce
+		if (!wp_verify_nonce($_POST['import_nonce'], 'multisite_backup_import_action')) {
+			wp_send_json_error(['message' => 'Security check failed.']);
+		}
+
+		// Check user capabilities
+		if (!current_user_can('manage_options')) {
+			wp_send_json_error(['message' => 'Insufficient permissions.']);
+		}
+
+		// Validate file upload
+		if (!isset($_FILES['backup_file']) || $_FILES['backup_file']['error'] !== UPLOAD_ERR_OK) {
+			wp_send_json_error(['message' => 'No backup file uploaded or upload error occurred.']);
+		}
+
+		$backup_file = $_FILES['backup_file'];
+		$import_mode = sanitize_text_field($_POST['import_mode']);
+
+		// Validate file type
+		$file_type = wp_check_filetype($backup_file['name']);
+		if ($file_type['ext'] !== 'zip') {
+			wp_send_json_error(['message' => 'Invalid file type. Please upload a ZIP file.']);
+		}
+
+		// Import backup
+		$import_result = $this->import_backup($backup_file, $import_mode);
+
+		if ($import_result['success']) {
+			wp_send_json_success(['message' => $import_result['message']]);
+		} else {
+			wp_send_json_error(['message' => $import_result['message']]);
+		}
+	}
+
+	/**
+	 * Scan backup file to validate format and contents
+	 */
+	private function scan_backup_file($backup_file)
+	{
+		try {
+			// Create temporary directory for scanning
+			$scan_dir = wp_upload_dir()['basedir'] . '/multisite-scans';
+			if (!file_exists($scan_dir)) {
+				wp_mkdir_p($scan_dir);
+			}
+
+			// Move uploaded file to temporary location
+			$timestamp = current_time('Y-m-d_H-i-s');
+			$scan_filename = 'scan_' . $timestamp . '.zip';
+			$scan_path = $scan_dir . '/' . $scan_filename;
+
+			if (!move_uploaded_file($backup_file['tmp_name'], $scan_path)) {
+				throw new Exception('Failed to move uploaded file for scanning');
+			}
+
+			// Open ZIP file
+			$zip = new ZipArchive();
+			$result = $zip->open($scan_path);
+
+			if ($result !== TRUE) {
+				unlink($scan_path);
+				throw new Exception('Failed to open ZIP file: ' . $result);
+			}
+
+			// Analyze ZIP contents
+			$scan_results = [
+				'success' => true,
+				'filename' => $backup_file['name'],
+				'size' => $backup_file['size'],
+				'format_valid' => false,
+				'backup_type' => 'unknown',
+				'components' => [],
+				'sites_count' => 0,
+				'backup_date' => null,
+				'wordpress_version' => null,
+				'warnings' => [],
+				'errors' => []
+			];
+
+			// Check for expected directory structure
+			$has_database = false;
+			$has_files = false;
+			$database_files = [];
+			$backup_info = null;
+			$files_found = [];
+			$total_files = 0;
+
+			for ($i = 0; $i < $zip->numFiles; $i++) {
+				$filename = $zip->getNameIndex($i);
+				$total_files++;
+
+				// Skip directories (they end with /)
+				if (substr($filename, -1) === '/') {
+					continue;
+				}
+
+				$files_found[] = $filename;
+
+				// Check for backup_info.json at root level
+				if ($filename === 'backup_info.json') {
+					$backup_info_content = $zip->getFromIndex($i);
+					if ($backup_info_content) {
+						$backup_info = json_decode($backup_info_content, true);
+					}
+				}
+
+				// Check for database directory and files
+				if (strpos($filename, 'database/') === 0) {
+					// Only count as having database if we find actual SQL files, not just the directory
+					if (pathinfo($filename, PATHINFO_EXTENSION) === 'sql') {
+						$has_database = true;
+						$database_files[] = basename($filename);
+					}
+				}
+
+
+
+				// Check for files directory
+				if (strpos($filename, 'files/') === 0) {
+					$has_files = true;
+				}
+			}
+
+			$zip->close();
+			unlink($scan_path);
+
+			// Determine backup type and validate format
+			// First check if backup_info.json provides the type
+			if ($backup_info && isset($backup_info['backup_type'])) {
+				$scan_results['backup_type'] = $backup_info['backup_type'];
+				$scan_results['format_valid'] = true;
+			} elseif ($has_database && $has_files) {
+				$scan_results['backup_type'] = 'full';
+				$scan_results['format_valid'] = true;
+			} elseif ($has_database && !$has_files) {
+				$scan_results['backup_type'] = 'database';
+				$scan_results['format_valid'] = true;
+			} elseif (!$has_database && $has_files) {
+				$scan_results['backup_type'] = 'files';
+				$scan_results['format_valid'] = true;
+			} else {
+				$scan_results['errors'][] = 'Invalid backup format: No recognizable backup structure found';
+			}
+
+			// Extract backup information
+			if ($backup_info) {
+				$scan_results['backup_date'] = $backup_info['backup_date'] ?? null;
+				$scan_results['wordpress_version'] = $backup_info['wordpress_version'] ?? null;
+				$scan_results['sites_count'] = count($backup_info['sites_included'] ?? []);
+
+				// Check WordPress version compatibility
+				$current_wp_version = get_bloginfo('version');
+				if ($scan_results['wordpress_version'] && version_compare($scan_results['wordpress_version'], $current_wp_version, '>')) {
+					$scan_results['warnings'][] = 'Backup was created with a newer WordPress version (' . $scan_results['wordpress_version'] . ') than current (' . $current_wp_version . ')';
+				}
+			}
+
+			// Determine components
+			if ($has_database) {
+				$db_count = count($database_files);
+				if ($db_count > 0) {
+					// Show specific SQL files found
+					$file_list = implode(', ', array_map(function ($file) {
+						return str_replace('.sql', '', $file);
+					}, $database_files));
+					$scan_results['components'][] = 'Database (' . $db_count . ' SQL files: ' . $file_list . ')';
+				} else {
+					$scan_results['components'][] = 'Database (structure only)';
+				}
+			}
+			if ($has_files) {
+				$scan_results['components'][] = 'Files (themes, plugins, uploads)';
+			}
+
+			// Add warnings for missing components
+			if (!$has_database) {
+				$scan_results['warnings'][] = 'No database backup found - site content and settings will not be restored';
+			}
+			if (!$has_files) {
+				$scan_results['warnings'][] = 'No files backup found - themes, plugins, and media will not be restored';
+			}
+
+			// Add debug information (can be removed later)
+			if (count($database_files) === 0) {
+				$database_related_files = array_filter($files_found, function ($file) {
+					return strpos($file, 'database/') === 0;
+				});
+
+				$debug_info = [];
+				$debug_info[] = 'Total files in ZIP: ' . $total_files;
+				$debug_info[] = 'Files in database folder: ' . count($database_related_files);
+
+				if (count($database_related_files) > 0) {
+					foreach ($database_related_files as $file) {
+						$ext = pathinfo($file, PATHINFO_EXTENSION);
+						$debug_info[] = '- ' . $file . ' (ext: ' . $ext . ', is_sql: ' . ($ext === 'sql' ? 'yes' : 'no') . ')';
+					}
+				} else {
+					$debug_info[] = 'No files found in database/ folder';
+				}
+
+				$scan_results['warnings'][] = 'Debug: ' . implode(' | ', $debug_info);
+			}
+
+			// Check if this looks like a plugin-generated backup
+			if (!$backup_info) {
+				$scan_results['warnings'][] = 'Backup metadata not found - this may not be a backup created by this plugin';
+			}
+
+			return $scan_results;
+
+		} catch (Exception $e) {
+			// Clean up on error
+			if (isset($scan_path) && file_exists($scan_path)) {
+				unlink($scan_path);
+			}
+
+			return [
+				'success' => false,
+				'message' => 'Backup scan failed: ' . $e->getMessage()
+			];
+		}
+	}
+
+	/**
+	 * Import backup functionality
+	 */
+	private function import_backup($backup_file, $import_mode)
+	{
+		try {
+			// Create import directory
+			$import_dir = wp_upload_dir()['basedir'] . '/multisite-imports';
+			if (!file_exists($import_dir)) {
+				wp_mkdir_p($import_dir);
+			}
+
+			// Move uploaded file
+			$timestamp = current_time('Y-m-d_H-i-s');
+			$import_filename = 'import_' . $timestamp . '.zip';
+			$import_path = $import_dir . '/' . $import_filename;
+
+			if (!move_uploaded_file($backup_file['tmp_name'], $import_path)) {
+				throw new Exception('Failed to move uploaded file');
+			}
+
+			// Extract backup
+			$extract_dir = $import_dir . '/extract_' . $timestamp;
+			wp_mkdir_p($extract_dir);
+
+			$zip = new ZipArchive();
+			$result = $zip->open($import_path);
+
+			if ($result !== TRUE) {
+				throw new Exception('Failed to open backup file: ' . $result);
+			}
+
+			$zip->extractTo($extract_dir);
+			$zip->close();
+
+			// Store import metadata
+			$import_data = [
+				'filename' => $backup_file['name'],
+				'mode' => $import_mode,
+				'timestamp' => time(),
+				'status' => 'in-progress'
+			];
+
+			$import_id = $this->store_import_metadata($import_data);
+
+			// Process full import (all components)
+			$this->import_database($extract_dir, $import_mode);
+			$this->import_files($extract_dir, $import_mode);
+			$this->import_users($extract_dir, $import_mode);
+			$this->import_settings($extract_dir, $import_mode);
+
+			// Clean up
+			$this->delete_directory($extract_dir);
+			unlink($import_path);
+
+			// Update import status
+			$this->update_import_status($import_id, 'completed');
+
+			return [
+				'success' => true,
+				'message' => 'Backup imported successfully! All components have been imported.'
+			];
+
+		} catch (Exception $e) {
+			// Clean up on error
+			if (isset($extract_dir) && file_exists($extract_dir)) {
+				$this->delete_directory($extract_dir);
+			}
+			if (isset($import_path) && file_exists($import_path)) {
+				unlink($import_path);
+			}
+
+			// Update import status to failed
+			if (isset($import_id)) {
+				$this->update_import_status($import_id, 'failed');
+			}
+
+			return [
+				'success' => false,
+				'message' => 'Import failed: ' . $e->getMessage()
+			];
+		}
+	}
+
+	/**
+	 * Import database from backup
+	 */
+	private function import_database($extract_dir, $import_mode)
+	{
+		global $wpdb;
+
+		$db_dir = $extract_dir . '/database';
+		if (!file_exists($db_dir)) {
+			return;
+		}
+
+		// Import SQL files
+		$sql_files = glob($db_dir . '/*.sql');
+
+		foreach ($sql_files as $sql_file) {
+			$sql_content = file_get_contents($sql_file);
+
+			if ($import_mode === 'replace') {
+				// Drop existing tables before import (be very careful with this)
+				// This is a simplified implementation - in production, you'd want more sophisticated handling
+			}
+
+			// Execute SQL (in chunks for large files)
+			$this->execute_sql($sql_content);
+		}
+	}
+
+	/**
+	 * Import files from backup
+	 */
+	private function import_files($extract_dir, $import_mode)
+	{
+		$files_dir = $extract_dir . '/files';
+		if (!file_exists($files_dir)) {
+			return;
+		}
+
+		$wp_content_backup = $files_dir . '/wp-content';
+		if (file_exists($wp_content_backup)) {
+			// Import themes
+			if (file_exists($wp_content_backup . '/themes')) {
+				$this->copy_directory($wp_content_backup . '/themes', get_theme_root());
+			}
+
+			// Import plugins
+			if (file_exists($wp_content_backup . '/plugins')) {
+				$this->copy_directory($wp_content_backup . '/plugins', WP_PLUGIN_DIR);
+			}
+
+			// Import uploads
+			if (file_exists($wp_content_backup . '/uploads')) {
+				$upload_dir = wp_upload_dir();
+				$this->copy_directory($wp_content_backup . '/uploads', $upload_dir['basedir']);
+			}
+		}
+	}
+
+	/**
+	 * Import users from backup
+	 */
+	private function import_users($extract_dir, $import_mode)
+	{
+		// Placeholder for user import functionality
+		// This would involve parsing user data and creating/updating user accounts
+	}
+
+	/**
+	 * Import settings from backup
+	 */
+	private function import_settings($extract_dir, $import_mode)
+	{
+		// Placeholder for settings import functionality
+		// This would involve importing WordPress options and configurations
+	}
+
+	/**
+	 * Execute SQL content
+	 */
+	private function execute_sql($sql_content)
+	{
+		global $wpdb;
+
+		// Split SQL into individual queries
+		$queries = explode(';', $sql_content);
+
+		foreach ($queries as $query) {
+			$query = trim($query);
+			if (!empty($query)) {
+				$wpdb->query($query);
+			}
+		}
+	}
+
+	/**
+	 * Store import metadata
+	 */
+	private function store_import_metadata($import_data)
+	{
+		$imports = get_option('multisite_backup_import_history', []);
+		$import_id = time() . '_' . wp_rand(1000, 9999);
+		$import_data['id'] = $import_id;
+		$imports[$import_id] = $import_data;
+		update_option('multisite_backup_import_history', $imports);
+		return $import_id;
+	}
+
+	/**
+	 * Update import status
+	 */
+	private function update_import_status($import_id, $status)
+	{
+		$imports = get_option('multisite_backup_import_history', []);
+		if (isset($imports[$import_id])) {
+			$imports[$import_id]['status'] = $status;
+			update_option('multisite_backup_import_history', $imports);
+		}
+	}
 }

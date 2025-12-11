@@ -330,3 +330,56 @@
   font-size: 14px;
   line-height: 1.4;
 }
+
+/* Site Selection Styles */
+.site-selection-container {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 10px;
+  background: #f9f9f9;
+  margin: 15px 0;
+}
+
+.site-selection-item {
+  display: block;
+  margin: 8px 0;
+  padding: 8px;
+  background: white;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.site-selection-item:hover {
+  background: #f0f6fc;
+}
+
+.site-selection-item input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.site-selection-item strong {
+  display: block;
+  color: #23282d;
+  font-size: 14px;
+}
+
+.site-selection-item small {
+  color: #666;
+  font-size: 12px;
+  margin-left: 20px;
+}
+/* Auto-selected site indicator */
+.site-item.auto-selected {
+  background: #e7f3ff;
+  border-left: 3px solid #0073aa;
+  transition: all 0.3s ease;
+}
+
+.site-item.auto-selected .site-info strong::after {
+  content: " ✓";
+  color: #0073aa;
+  font-weight: normal;
+}

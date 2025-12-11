@@ -98,31 +98,46 @@ if (!in_array($current_tab, $valid_tabs)) {
                                 <td>
                                     <div class="site-selection">
                                         <div class="site-selection-header">
-                                            <label>
-                                                <input type="checkbox" id="select-all-sites"> 
-                                                <strong>Select All Sites</strong>
-                                            </label>
+                                            <strong>Select Sites to Backup:</strong>
+                                            <?php if (!empty($sites)): ?>
+                                                <span class="description">(<?php echo count($sites); ?> site<?php echo count($sites) !== 1 ? 's' : ''; ?> available)</span>
+                                            <?php endif; ?>
                                         </div>
                                         <div class="site-list">
-                                            <?php foreach ($sites as $site): ?>
-                                                <label class="site-item">
-                                                    <input type="checkbox" name="selected_sites[]" value="<?php echo esc_attr($site->blog_id); ?>" class="site-checkbox">
-                                                    <div class="site-info">
-                                                        <strong><?php echo esc_html(get_blog_option($site->blog_id, 'blogname')); ?></strong>
-                                                        <span class="site-url"><?php echo esc_html($site->domain . $site->path); ?></span>
-                                                    </div>
-                                                </label>
-                                            <?php endforeach; ?>
+                                            <?php if (empty($sites)): ?>
+                                                <div class="notice notice-warning inline">
+                                                    <p><strong>No sites available for backup.</strong></p>
+                                                    <p>Please ensure you have sites in your multisite network.</p>
+                                                </div>
+                                            <?php else: ?>
+                                                <?php foreach ($sites as $site): ?>
+                                                    <label class="site-item">
+                                                        <input type="checkbox" name="selected_sites[]" value="<?php echo esc_attr($site->blog_id); ?>" class="site-checkbox">
+                                                        <div class="site-info">
+                                                            <strong><?php echo esc_html(get_blog_option($site->blog_id, 'blogname')); ?></strong>
+                                                            <span class="site-url"><?php echo esc_html($site->domain . $site->path); ?></span>
+                                                        </div>
+                                                    </label>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
-                                    <p class="description">Select which sites to include in the backup.</p>
+                                    <p class="description">
+                                        Select which sites to include in the backup. 
+                                        <?php if (!empty($sites)): ?>
+                                            <strong>All sites are selected by default.</strong> Uncheck any sites you don't want to backup.
+                                        <?php endif; ?>
+                                    </p>
                                 </td>
                             </tr>
                         </table>
                         
                         <p class="submit">
-                            <input type="submit" name="submit" id="submit" class="button button-primary" value="Create Backup">
+                            <input type="submit" name="submit" id="submit" class="button button-primary" value="Create Backup" <?php echo empty($sites) ? 'disabled' : ''; ?>>
                             <span class="spinner"></span>
+                            <?php if (empty($sites)): ?>
+                                <p class="description" style="color: #d63638;">Cannot create backup: No sites available in the network.</p>
+                            <?php endif; ?>
                         </p>
                     </form>
                 </div>

@@ -53,17 +53,27 @@
 			}
 		});
 		
-		// Select all sites checkbox
-		$('#select-all-sites').on('change', function() {
-			$('.site-checkbox').prop('checked', $(this).prop('checked'));
+		// Individual site checkbox (Select All functionality removed)
+		$('.site-checkbox').on('change', function() {
+			// No longer need to sync with select all checkbox
 		});
 		
-		// Individual site checkbox
-		$('.site-checkbox').on('change', function() {
-			var totalCheckboxes = $('.site-checkbox').length;
-			var checkedCheckboxes = $('.site-checkbox:checked').length;
-			
-			$('#select-all-sites').prop('checked', totalCheckboxes === checkedCheckboxes);
+		// Auto-select all sites by default for backup creation (user can uncheck if needed)
+		$(document).ready(function() {
+			if ($('#create-backup-form').length && $('.site-checkbox').length > 0) {
+				// Only auto-select if no sites are currently selected
+				if ($('.site-checkbox:checked').length === 0) {
+					$('.site-checkbox').prop('checked', true);
+					
+					// Add a subtle visual indicator that sites were auto-selected
+					setTimeout(function() {
+						$('.site-item').addClass('auto-selected');
+						setTimeout(function() {
+							$('.site-item').removeClass('auto-selected');
+						}, 2000);
+					}, 500);
+				}
+			}
 		});
 		
 		// Delete backup
@@ -83,12 +93,26 @@
 			var $form = $(this);
 			
 			// Validate form
+			var allSiteCheckboxes = $form.find('input[name="selected_sites[]"]');
 			var selectedSites = $form.find('input[name="selected_sites[]"]:checked');
+			
+			// Check if there are any site checkboxes at all
+			if (allSiteCheckboxes.length === 0) {
+				Swal.fire({
+					icon: 'error',
+					title: 'No Sites Available',
+					text: 'No sites are available for backup. Please ensure you have sites in your multisite network.',
+					confirmButtonColor: '#d33'
+				});
+				return false;
+			}
+			
+			// Check if user selected any sites
 			if (selectedSites.length === 0) {
 				Swal.fire({
 					icon: 'warning',
 					title: 'No Sites Selected',
-					text: 'Please select at least one site to backup.',
+					text: 'Please select at least one site to backup from the list below.',
 					confirmButtonColor: '#0073aa'
 				});
 				return false;
@@ -223,7 +247,6 @@
 						}).then(() => {
 							// Reset form and redirect to history tab
 							$form[0].reset();
-							$('#select-all-sites').prop('checked', false);
 							
 							// Redirect to backup history tab
 							var historyUrl = $('.nav-tab[data-tab="backup-history"]').attr('href');
@@ -322,12 +345,6 @@
 				}
 			}, 800); // Update every 800ms
 		}
-		
-		// General form submission with loading state (for other forms)
-		$('form:not(#create-backup-form)').on('submit', function() {
-			$(this).find('.spinner').addClass('is-active');
-			// $(this).find('input[type="submit"]').prop('disabled', true);
-		});
 		
 		// Import page functionality
 		if ($('#import-backup-form').length) {
@@ -560,6 +577,38 @@
 
 		// Function to show import mode selection
 		function showImportModeSelection(file, scanResults, $form) {
+			// First, fetch the sites list
+			$.ajax({
+				url: multisite_backup_ajax.ajax_url,
+				type: 'POST',
+				data: {
+					action: 'multisite_backup_get_sites'
+				},
+				success: function(response) {
+					if (response.success) {
+						showImportModePopup(file, scanResults, $form, response.data.sites);
+					} else {
+						Swal.fire({
+							icon: 'error',
+							title: 'Error Loading Sites',
+							text: response.data.message || 'Failed to load sites list.',
+							confirmButtonColor: '#d33'
+						});
+					}
+				},
+				error: function() {
+					Swal.fire({
+						icon: 'error',
+						title: 'Error Loading Sites',
+						text: 'Failed to load sites list. Please try again.',
+						confirmButtonColor: '#d33'
+					});
+				}
+			});
+		}
+		
+		// Function to show the actual import mode popup with sites
+		function showImportModePopup(file, scanResults, $form, sites) {
 			// Build scan results summary for display
 			var scanSummaryHtml = '';
 			if (scanResults.components.length > 0) {
@@ -594,8 +643,46 @@
 				`;
 			}
 			
+			// Build sites selection HTML (exclude main site)
+			var sitesHtml = '';
+			if (sites && sites.length > 0) {
+				// Filter out the main site
+				var nonMainSites = sites.filter(function(site) {
+					return !site.is_main;
+				});
+				
+				if (nonMainSites.length > 0) {
+					sitesHtml = `
+						<h4 style="margin: 20px 0 10px 0; color: #0073aa;">🌐 Select Target Site(s):</h4>
+						<div style="margin: 15px 0; max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px; background: #f9f9f9;">
+					`;
+					
+					nonMainSites.forEach(function(site) {
+						var siteLabel = site.name || 'Unnamed Site';
+						var siteUrl = site.url || site.domain + site.path;
+						
+						sitesHtml += `
+							<label style="display: block; margin: 8px 0; padding: 8px; background: white; border-radius: 3px; cursor: pointer;">
+								<input type="checkbox" name="import_target_sites" value="${site.id}" style="margin-right: 8px;">
+								<strong>${siteLabel}</strong><br>
+								<small style="color: #666; margin-left: 20px;">${siteUrl}</small>
+							</label>
+						`;
+					});
+					
+					sitesHtml += '</div>';
+				} else {
+					sitesHtml = `
+						<div style="margin: 15px 0; padding: 15px; background: #fff3cd; border-radius: 5px; border-left: 4px solid #ffc107;">
+							<strong>ℹ️ No Target Sites Available</strong><br>
+							<small>Only the main site exists in this network. Import will be applied to the main site automatically.</small>
+						</div>
+					`;
+				}
+			}
+
 			Swal.fire({
-				title: 'Select Import Mode',
+				title: 'Select Import Options',
 				html: `
 					<div style="text-align: left; margin: 20px 0;">
 						<h4 style="margin-bottom: 10px; color: #0073aa;">📁 File: ${file.name}</h4>
@@ -604,6 +691,8 @@
 						
 						${scanSummaryHtml}
 						${warningsHtml}
+						
+						${sitesHtml}
 						
 						<h4 style="margin: 20px 0 10px 0; color: #0073aa;">⚙️ Choose Import Mode:</h4>
 						<div style="margin: 15px 0;">
@@ -643,24 +732,69 @@
 							}
 						});
 					});
+					
+
 				}
 			}).then((result) => {
 				if (result.isConfirmed) {
 					// Get selected import mode
 					const selectedMode = document.querySelector('input[name="import_mode_popup"]:checked').value;
-					showImportConfirmation(file, scanResults, selectedMode, $form);
+					
+					// Get selected sites
+					const selectedSites = [];
+					const siteCheckboxes = document.querySelectorAll('input[name="import_target_sites"]:checked');
+					siteCheckboxes.forEach(checkbox => {
+						const siteId = parseInt(checkbox.value);
+						const siteData = sites.find(site => site.id == siteId);
+						if (siteData) {
+							selectedSites.push(siteData);
+						}
+					});
+					console.log(selectedSites, sites)
+					
+					// Validate that at least one sub-site is selected
+					if (selectedSites.length === 0) {
+						Swal.fire({
+							icon: 'warning',
+							title: 'No Sites Selected',
+							text: 'Please select at least one site to import to.',
+							confirmButtonColor: '#0073aa'
+						});
+						return;
+					}
+					
+					showImportConfirmation(file, scanResults, selectedMode, selectedSites, $form);
 				}
 			});
 		}
 		
 		// Function to show final import confirmation
-		function showImportConfirmation(file, scanResults, importMode, $form) {
+		function showImportConfirmation(file, scanResults, importMode, selectedSites, $form) {
 			const importModeTexts = {
 				'merge': 'Merge with existing data',
 				'replace': 'Replace existing data'
 			};
 			
 			const importModeText = importModeTexts[importMode] || 'Unknown';
+			
+			// Build selected sites HTML
+			var selectedSitesHtml = '';
+			if (selectedSites && selectedSites.length > 0) {
+				selectedSitesHtml = `
+					<h4 style="margin: 15px 0 5px 0; color: #0073aa;">🌐 Target Sites (${selectedSites.length}):</h4>
+					<ul style="padding-left: 20px; margin: 5px 0;">
+				`;
+				
+				selectedSites.forEach(function(site) {
+					var siteLabel = site.name || 'Unnamed Site';
+					var siteUrl = site.url || site.domain + site.path;
+					var isMainSite = site.is_main ? ' (Main Site)' : '';
+					
+					selectedSitesHtml += `<li><strong>${siteLabel}${isMainSite}</strong><br><small>${siteUrl}</small></li>`;
+				});
+				
+				selectedSitesHtml += '</ul>';
+			}
 			
 			// Build scan results summary for confirmation
 			var scanSummaryHtml = '';
@@ -706,6 +840,7 @@
 						
 						<h4 style="margin: 20px 0 10px 0; color: #0073aa;">⚙️ Import Mode: ${importModeText}</h4>
 						
+						${selectedSitesHtml}
 						${scanSummaryHtml}
 						${warningsHtml}
 						
@@ -729,8 +864,9 @@
 				width: '700px'
 			}).then((result) => {
 				if (result.isConfirmed) {
-					// Store the selected import mode for the import process
+					// Store the selected import mode and sites for the import process
 					$form.data('selected-import-mode', importMode);
+					$form.data('selected-sites', selectedSites);
 					startImportProcess($form);
 				}
 			});
@@ -767,6 +903,11 @@
 			// Add the selected import mode from the popup
 			var selectedImportMode = $form.data('selected-import-mode') || 'merge';
 			formData.append('import_mode', selectedImportMode);
+			
+			// Add the selected sites from the popup
+			var selectedSites = $form.data('selected-sites') || [];
+			var siteIds = selectedSites.map(site => site.id);
+			formData.append('target_sites', JSON.stringify(siteIds));
 			
 			// Submit via AJAX
 			$.ajax({

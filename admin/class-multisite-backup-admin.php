@@ -197,11 +197,57 @@ class Multisite_Backup_Admin
 
 		$main_site_url = network_site_url();
 		$main_site_admin_url = network_admin_url('admin.php?page=multisite-backup');
-		
+
 		echo '<div class="notice notice-info is-dismissible">';
 		echo '<p><strong>Multisite Backup:</strong> This plugin is only available on the main site of your multisite network.</p>';
 		echo '<p><a href="' . esc_url($main_site_admin_url) . '" class="button button-primary">Go to Main Site Backup</a></p>';
 		echo '</div>';
+	}
+
+	/**
+	 * Handle AJAX request to get sites list
+	 */
+	public function handle_get_sites()
+	{
+		// Check multisite and main site requirements
+		if (!is_multisite() || !is_main_site()) {
+			wp_send_json_error(['message' => 'Access denied. This feature is only available on the main site of a multisite network.']);
+		}
+
+		// Check user capabilities
+		if (!current_user_can('manage_options')) {
+			wp_send_json_error(['message' => 'Insufficient permissions.']);
+		}
+
+		// Get all sites in the network
+		$sites = get_sites(array(
+			'number' => 0, // Get all sites
+			'orderby' => 'domain',
+			'order' => 'ASC'
+		));
+
+		$sites_data = array();
+		foreach ($sites as $site) {
+			// Skip main site for import target selection
+			if ($site->blog_id == 1) {
+				continue;
+			}
+
+			switch_to_blog($site->blog_id);
+
+			$sites_data[] = array(
+				'id' => $site->blog_id,
+				'name' => get_bloginfo('name'),
+				'url' => get_bloginfo('url'),
+				'domain' => $site->domain,
+				'path' => $site->path,
+				'is_main' => false // Always false since we're excluding main site
+			);
+
+			restore_current_blog();
+		}
+
+		wp_send_json_success(['sites' => $sites_data]);
 	}
 
 	/**
@@ -838,6 +884,36 @@ class Multisite_Backup_Admin
 
 		$backup_file = $_FILES['backup_file'];
 		$import_mode = sanitize_text_field($_POST['import_mode']);
+		$target_sites = isset($_POST['target_sites']) ? json_decode(stripslashes($_POST['target_sites']), true) : array();
+
+		// Validate target sites - if empty, check if only main site exists
+		if (empty($target_sites) || !is_array($target_sites)) {
+			// Check if there are any sub-sites in the network
+			$all_sites = get_sites(array('number' => 0));
+			$has_sub_sites = false;
+
+			foreach ($all_sites as $site) {
+				if ($site->blog_id != 1) {
+					$has_sub_sites = true;
+					break;
+				}
+			}
+
+			if ($has_sub_sites) {
+				// Sub-sites exist but none selected
+				wp_send_json_error(['message' => 'Please select at least one target site for import.']);
+			} else {
+				// Only main site exists, use it automatically
+				$target_sites = array(
+					array(
+						'id' => 1,
+						'name' => get_bloginfo('name'),
+						'url' => get_bloginfo('url'),
+						'is_main' => true
+					)
+				);
+			}
+		}
 
 		// Validate file type
 		$file_type = wp_check_filetype($backup_file['name']);
@@ -846,7 +922,7 @@ class Multisite_Backup_Admin
 		}
 
 		// Import backup
-		$import_result = $this->import_backup($backup_file, $import_mode);
+		$import_result = $this->import_backup($backup_file, $import_mode, $target_sites);
 
 		if ($import_result['success']) {
 			wp_send_json_success(['message' => $import_result['message']]);
@@ -1048,7 +1124,7 @@ class Multisite_Backup_Admin
 	/**
 	 * Import backup functionality
 	 */
-	private function import_backup($backup_file, $import_mode)
+	private function import_backup($backup_file, $import_mode, $target_sites = array())
 	{
 		try {
 			// Create import directory
@@ -1084,6 +1160,7 @@ class Multisite_Backup_Admin
 			$import_data = [
 				'filename' => $backup_file['name'],
 				'mode' => $import_mode,
+				'target_sites' => $target_sites,
 				'timestamp' => time(),
 				'status' => 'in-progress'
 			];
@@ -1105,7 +1182,7 @@ class Multisite_Backup_Admin
 
 			return [
 				'success' => true,
-				'message' => 'Backup imported successfully! All components have been imported.'
+				'message' => 'Backup imported successfully! All components have been imported to ' . count($target_sites) . ' site(s).'
 			];
 
 		} catch (Exception $e) {

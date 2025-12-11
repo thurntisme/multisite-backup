@@ -430,80 +430,8 @@
 					return;
 				}
 				
-				var importMode = $('#import_mode').val();
-				var importModeText = $('#import_mode option:selected').text();
-				
-				// Build scan results summary for confirmation
-				var scanSummaryHtml = '';
-				if (scanResults.components.length > 0) {
-					scanSummaryHtml += `
-						<h4 style="margin: 15px 0 5px 0; color: #0073aa;">📦 What will be imported:</h4>
-						<ul style="padding-left: 20px; margin: 5px 0;">
-							${scanResults.components.map(comp => '<li>' + comp + '</li>').join('')}
-						</ul>
-					`;
-				}
-				
-				if (scanResults.backup_date || scanResults.wordpress_version) {
-					scanSummaryHtml += `
-						<h4 style="margin: 15px 0 5px 0; color: #0073aa;">ℹ️ Backup Details:</h4>
-						<ul style="padding-left: 20px; margin: 5px 0;">
-							${scanResults.backup_date ? '<li><strong>Created:</strong> ' + scanResults.backup_date + '</li>' : ''}
-							${scanResults.wordpress_version ? '<li><strong>WordPress Version:</strong> ' + scanResults.wordpress_version + '</li>' : ''}
-							${scanResults.sites_count > 0 ? '<li><strong>Sites:</strong> ' + scanResults.sites_count + '</li>' : ''}
-						</ul>
-					`;
-				}
-				
-				var warningsHtml = '';
-				if (scanResults.warnings.length > 0) {
-					warningsHtml = `
-						<div style="background: #fff3cd; padding: 10px; border-radius: 3px; margin-top: 15px;">
-							<strong>⚠️ Warnings:</strong>
-							<ul style="margin: 5px 0; padding-left: 20px; font-size: 14px;">
-								${scanResults.warnings.map(warning => '<li>' + warning + '</li>').join('')}
-							</ul>
-						</div>
-					`;
-				}
-				
-				// Show confirmation popup with scan results
-				Swal.fire({
-					title: 'Confirm Backup Import',
-					html: `
-						<div style="text-align: left; margin: 20px 0;">
-							<h4 style="margin-bottom: 10px; color: #0073aa;">📁 File: ${file.name}</h4>
-							<p><strong>Size:</strong> ${formatFileSize(file.size)}</p>
-							<p><strong>Type:</strong> ${scanResults.backup_type ? scanResults.backup_type.charAt(0).toUpperCase() + scanResults.backup_type.slice(1) : 'Unknown'} Backup</p>
-							
-							<h4 style="margin: 20px 0 10px 0; color: #0073aa;">⚙️ Import Mode: ${importModeText}</h4>
-							
-							${scanSummaryHtml}
-							${warningsHtml}
-							
-							<div style="background: #f8d7da; padding: 15px; border-radius: 5px; margin-top: 20px;">
-								<strong>⚠️ Important Warning:</strong>
-								<ul style="margin: 10px 0; padding-left: 20px;">
-									<li>This will modify your current WordPress installation</li>
-									<li>Make sure you have a backup of your current site</li>
-									<li>The import process cannot be undone</li>
-									<li>Large files may take several minutes to process</li>
-								</ul>
-							</div>
-						</div>
-					`,
-					icon: 'warning',
-					showCancelButton: true,
-					confirmButtonColor: '#d33',
-					cancelButtonColor: '#0073aa',
-					confirmButtonText: '⚠️ Import Backup',
-					cancelButtonText: '❌ Cancel',
-					width: '700px'
-				}).then((result) => {
-					if (result.isConfirmed) {
-						startImportProcess($form);
-					}
-				});
+				// Show import mode selection popup first
+				showImportModeSelection(file, scanResults, $form);
 			});
 		}
 		
@@ -630,6 +558,184 @@
 			`);
 		}
 
+		// Function to show import mode selection
+		function showImportModeSelection(file, scanResults, $form) {
+			// Build scan results summary for display
+			var scanSummaryHtml = '';
+			if (scanResults.components.length > 0) {
+				scanSummaryHtml += `
+					<h4 style="margin: 15px 0 5px 0; color: #0073aa;">📦 What will be imported:</h4>
+					<ul style="padding-left: 20px; margin: 5px 0;">
+						${scanResults.components.map(comp => '<li>' + comp + '</li>').join('')}
+					</ul>
+				`;
+			}
+			
+			if (scanResults.backup_date || scanResults.wordpress_version) {
+				scanSummaryHtml += `
+					<h4 style="margin: 15px 0 5px 0; color: #0073aa;">ℹ️ Backup Details:</h4>
+					<ul style="padding-left: 20px; margin: 5px 0;">
+						${scanResults.backup_date ? '<li><strong>Created:</strong> ' + scanResults.backup_date + '</li>' : ''}
+						${scanResults.wordpress_version ? '<li><strong>WordPress Version:</strong> ' + scanResults.wordpress_version + '</li>' : ''}
+						${scanResults.sites_count > 0 ? '<li><strong>Sites:</strong> ' + scanResults.sites_count + '</li>' : ''}
+					</ul>
+				`;
+			}
+			
+			var warningsHtml = '';
+			if (scanResults.warnings.length > 0) {
+				warningsHtml = `
+					<div style="background: #fff3cd; padding: 10px; border-radius: 3px; margin-top: 15px;">
+						<strong>⚠️ Warnings:</strong>
+						<ul style="margin: 5px 0; padding-left: 20px; font-size: 14px;">
+							${scanResults.warnings.map(warning => '<li>' + warning + '</li>').join('')}
+						</ul>
+					</div>
+				`;
+			}
+			
+			Swal.fire({
+				title: 'Select Import Mode',
+				html: `
+					<div style="text-align: left; margin: 20px 0;">
+						<h4 style="margin-bottom: 10px; color: #0073aa;">📁 File: ${file.name}</h4>
+						<p><strong>Size:</strong> ${formatFileSize(file.size)}</p>
+						<p><strong>Type:</strong> ${scanResults.backup_type ? scanResults.backup_type.charAt(0).toUpperCase() + scanResults.backup_type.slice(1) : 'Unknown'} Backup</p>
+						
+						${scanSummaryHtml}
+						${warningsHtml}
+						
+						<h4 style="margin: 20px 0 10px 0; color: #0073aa;">⚙️ Choose Import Mode:</h4>
+						<div style="margin: 15px 0;">
+							<label class="import-mode-option selected">
+								<input type="radio" name="import_mode_popup" value="merge" checked>
+								<strong>🔄 Merge with existing data</strong>
+								<small>Add imported content alongside existing content. Safest option.</small>
+							</label>
+							<label class="import-mode-option">
+								<input type="radio" name="import_mode_popup" value="replace">
+								<strong>⚠️ Replace existing data</strong>
+								<small>Overwrite existing content with imported content. Use with caution.</small>
+							</label>
+						</div>
+					</div>
+				`,
+				icon: 'question',
+				showCancelButton: true,
+				confirmButtonColor: '#0073aa',
+				cancelButtonColor: '#6c757d',
+				confirmButtonText: '➡️ Continue to Confirmation',
+				cancelButtonText: '❌ Cancel',
+				width: '700px',
+				didOpen: () => {
+					// Add click handlers for radio button labels
+					const labels = document.querySelectorAll('.import-mode-option');
+					labels.forEach(label => {
+						label.addEventListener('click', function() {
+							// Update selected styling
+							labels.forEach(l => l.classList.remove('selected'));
+							this.classList.add('selected');
+							
+							// Check the radio button
+							const radio = this.querySelector('input[type="radio"]');
+							if (radio) {
+								radio.checked = true;
+							}
+						});
+					});
+				}
+			}).then((result) => {
+				if (result.isConfirmed) {
+					// Get selected import mode
+					const selectedMode = document.querySelector('input[name="import_mode_popup"]:checked').value;
+					showImportConfirmation(file, scanResults, selectedMode, $form);
+				}
+			});
+		}
+		
+		// Function to show final import confirmation
+		function showImportConfirmation(file, scanResults, importMode, $form) {
+			const importModeTexts = {
+				'merge': 'Merge with existing data',
+				'replace': 'Replace existing data'
+			};
+			
+			const importModeText = importModeTexts[importMode] || 'Unknown';
+			
+			// Build scan results summary for confirmation
+			var scanSummaryHtml = '';
+			if (scanResults.components.length > 0) {
+				scanSummaryHtml += `
+					<h4 style="margin: 15px 0 5px 0; color: #0073aa;">📦 What will be imported:</h4>
+					<ul style="padding-left: 20px; margin: 5px 0;">
+						${scanResults.components.map(comp => '<li>' + comp + '</li>').join('')}
+					</ul>
+				`;
+			}
+			
+			if (scanResults.backup_date || scanResults.wordpress_version) {
+				scanSummaryHtml += `
+					<h4 style="margin: 15px 0 5px 0; color: #0073aa;">ℹ️ Backup Details:</h4>
+					<ul style="padding-left: 20px; margin: 5px 0;">
+						${scanResults.backup_date ? '<li><strong>Created:</strong> ' + scanResults.backup_date + '</li>' : ''}
+						${scanResults.wordpress_version ? '<li><strong>WordPress Version:</strong> ' + scanResults.wordpress_version + '</li>' : ''}
+						${scanResults.sites_count > 0 ? '<li><strong>Sites:</strong> ' + scanResults.sites_count + '</li>' : ''}
+					</ul>
+				`;
+			}
+			
+			var warningsHtml = '';
+			if (scanResults.warnings.length > 0) {
+				warningsHtml = `
+					<div style="background: #fff3cd; padding: 10px; border-radius: 3px; margin-top: 15px;">
+						<strong>⚠️ Warnings:</strong>
+						<ul style="margin: 5px 0; padding-left: 20px; font-size: 14px;">
+							${scanResults.warnings.map(warning => '<li>' + warning + '</li>').join('')}
+						</ul>
+					</div>
+				`;
+			}
+			
+			Swal.fire({
+				title: 'Confirm Backup Import',
+				html: `
+					<div style="text-align: left; margin: 20px 0;">
+						<h4 style="margin-bottom: 10px; color: #0073aa;">📁 File: ${file.name}</h4>
+						<p><strong>Size:</strong> ${formatFileSize(file.size)}</p>
+						<p><strong>Type:</strong> ${scanResults.backup_type ? scanResults.backup_type.charAt(0).toUpperCase() + scanResults.backup_type.slice(1) : 'Unknown'} Backup</p>
+						
+						<h4 style="margin: 20px 0 10px 0; color: #0073aa;">⚙️ Import Mode: ${importModeText}</h4>
+						
+						${scanSummaryHtml}
+						${warningsHtml}
+						
+						<div style="background: #f8d7da; padding: 15px; border-radius: 5px; margin-top: 20px;">
+							<strong>⚠️ Important Warning:</strong>
+							<ul style="margin: 10px 0; padding-left: 20px;">
+								<li>This will modify your current WordPress installation</li>
+								<li>Make sure you have a backup of your current site</li>
+								<li>The import process cannot be undone</li>
+								<li>Large files may take several minutes to process</li>
+							</ul>
+						</div>
+					</div>
+				`,
+				icon: 'warning',
+				showCancelButton: true,
+				confirmButtonColor: '#d33',
+				cancelButtonColor: '#0073aa',
+				confirmButtonText: '⚠️ Import Backup',
+				cancelButtonText: '❌ Cancel',
+				width: '700px'
+			}).then((result) => {
+				if (result.isConfirmed) {
+					// Store the selected import mode for the import process
+					$form.data('selected-import-mode', importMode);
+					startImportProcess($form);
+				}
+			});
+		}
+
 		// Function to start import process
 		function startImportProcess($form) {
 			// Show progress popup
@@ -657,6 +763,10 @@
 			// Prepare form data
 			var formData = new FormData($form[0]);
 			formData.append('action', 'multisite_backup_import');
+			
+			// Add the selected import mode from the popup
+			var selectedImportMode = $form.data('selected-import-mode') || 'merge';
+			formData.append('import_mode', selectedImportMode);
 			
 			// Submit via AJAX
 			$.ajax({

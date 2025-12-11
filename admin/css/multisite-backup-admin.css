@@ -270,3 +270,63 @@
   content: "📦 ";
   margin-right: 5px;
 }
+
+/* Import Mode Selection Popup Styles */
+.import-mode-option {
+  display: block;
+  margin: 10px 0;
+  padding: 15px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: #fff;
+  position: relative;
+}
+
+.import-mode-option:hover {
+  border-color: #0073aa;
+  background: #f8f9fa;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 115, 170, 0.1);
+}
+
+.import-mode-option.selected {
+  border-color: #0073aa;
+  background: #f0f6fc;
+  position: relative;
+}
+
+.import-mode-option.selected::after {
+  content: "✓";
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: #0073aa;
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.import-mode-option input[type="radio"] {
+  display: none;
+}
+
+.import-mode-option strong {
+  display: block;
+  color: #23282d;
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.import-mode-option small {
+  color: #666;
+  font-size: 14px;
+  line-height: 1.4;
+}

@@ -50,6 +50,7 @@ if (isset($_POST['action'])) {
                     <?php wp_nonce_field('multisite_backup_import_action', 'import_nonce'); ?>
                     <?php wp_nonce_field('multisite_backup_scan_action', 'scan_nonce'); ?>
                     <input type="hidden" name="action" value="import_backup">
+                    <input type="hidden" name="import_mode" id="import_mode" value="merge">
 
                     <table class="form-table">
                         <tr>
@@ -65,23 +66,7 @@ if (isset($_POST['action'])) {
                             </td>
                         </tr>
 
-                        <tr>
-                            <th scope="row">
-                                <label for="import_mode">Import Mode</label>
-                            </th>
-                            <td>
-                                <select name="import_mode" id="import_mode" class="regular-text">
-                                    <option value="merge">Merge with existing data</option>
-                                    <option value="replace">Replace existing data</option>
-                                    <option value="new_sites">Create new sites</option>
-                                </select>
-                                <p class="description">
-                                    <strong>Merge:</strong> Add imported data alongside existing data.<br>
-                                    <strong>Replace:</strong> Overwrite existing data with imported data.<br>
-                                    <strong>New Sites:</strong> Create new sites from the backup.
-                                </p>
-                            </td>
-                        </tr>
+
                     </table>
 
                     <div class="import-preview" id="import-preview" style="display: none;">
@@ -175,8 +160,6 @@ if (isset($_POST['action'])) {
                         </li>
                         <li><strong>Replace:</strong> Overwrites existing content with imported content. Use with
                             caution.</li>
-                        <li><strong>New Sites:</strong> Creates new sites from the backup without affecting existing
-                            ones.</li>
                     </ul>
 
                     <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin-top: 20px;">

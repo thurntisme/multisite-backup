@@ -63,6 +63,10 @@ class Multisite_Backup_Admin
 	 */
 	public function enqueue_styles()
 	{
+		// Only enqueue styles on multisite main site
+		if (!is_multisite() || !is_main_site()) {
+			return;
+		}
 
 		/**
 		 * This function is provided for demonstration purposes only.
@@ -87,6 +91,10 @@ class Multisite_Backup_Admin
 	 */
 	public function enqueue_scripts()
 	{
+		// Only enqueue scripts on multisite main site
+		if (!is_multisite() || !is_main_site()) {
+			return;
+		}
 
 		/**
 		 * This function is provided for demonstration purposes only.
@@ -116,6 +124,15 @@ class Multisite_Backup_Admin
 
 	public function register_multisite_backup_menu()
 	{
+		// Only show menu if site is in multisite mode and this is the main site
+		if (!is_multisite() || !is_main_site()) {
+			// Show admin notice if on multisite but not main site
+			if (is_multisite() && !is_main_site()) {
+				add_action('admin_notices', array($this, 'show_main_site_notice'));
+			}
+			return;
+		}
+
 		// Main menu page
 		add_menu_page(
 			'Multisite Backup',
@@ -150,12 +167,41 @@ class Multisite_Backup_Admin
 
 	public function multisite_backup_export_page_render()
 	{
+		// Security check: Only allow access on multisite main site
+		if (!is_multisite() || !is_main_site()) {
+			wp_die(__('Access denied. This feature is only available on the main site of a multisite network.'));
+		}
+
 		include_once 'partials/multisite-backup-admin-display.php';
 	}
 
 	public function multisite_backup_import_page_render()
 	{
+		// Security check: Only allow access on multisite main site
+		if (!is_multisite() || !is_main_site()) {
+			wp_die(__('Access denied. This feature is only available on the main site of a multisite network.'));
+		}
+
 		include_once 'partials/multisite-backup-import-display.php';
+	}
+
+	/**
+	 * Show admin notice for non-main sites
+	 */
+	public function show_main_site_notice()
+	{
+		// Only show on plugin-related pages or if user has manage_options capability
+		if (!current_user_can('manage_options')) {
+			return;
+		}
+
+		$main_site_url = network_site_url();
+		$main_site_admin_url = network_admin_url('admin.php?page=multisite-backup');
+		
+		echo '<div class="notice notice-info is-dismissible">';
+		echo '<p><strong>Multisite Backup:</strong> This plugin is only available on the main site of your multisite network.</p>';
+		echo '<p><a href="' . esc_url($main_site_admin_url) . '" class="button button-primary">Go to Main Site Backup</a></p>';
+		echo '</div>';
 	}
 
 	/**
@@ -163,6 +209,11 @@ class Multisite_Backup_Admin
 	 */
 	public function handle_backup_creation()
 	{
+		// Check multisite and main site requirements
+		if (!is_multisite() || !is_main_site()) {
+			wp_send_json_error(['message' => 'Access denied. This feature is only available on the main site of a multisite network.']);
+		}
+
 		// Verify nonce
 		if (!wp_verify_nonce($_POST['backup_nonce'], 'multisite_backup_action')) {
 			wp_send_json_error(['message' => 'Security check failed.']);
@@ -722,6 +773,11 @@ class Multisite_Backup_Admin
 	 */
 	public function handle_backup_scan()
 	{
+		// Check multisite and main site requirements
+		if (!is_multisite() || !is_main_site()) {
+			wp_send_json_error(['message' => 'Access denied. This feature is only available on the main site of a multisite network.']);
+		}
+
 		// Verify nonce
 		if (!wp_verify_nonce($_POST['scan_nonce'], 'multisite_backup_scan_action')) {
 			wp_send_json_error(['message' => 'Security check failed.']);
@@ -760,6 +816,11 @@ class Multisite_Backup_Admin
 	 */
 	public function handle_backup_import()
 	{
+		// Check multisite and main site requirements
+		if (!is_multisite() || !is_main_site()) {
+			wp_send_json_error(['message' => 'Access denied. This feature is only available on the main site of a multisite network.']);
+		}
+
 		// Verify nonce
 		if (!wp_verify_nonce($_POST['import_nonce'], 'multisite_backup_import_action')) {
 			wp_send_json_error(['message' => 'Security check failed.']);

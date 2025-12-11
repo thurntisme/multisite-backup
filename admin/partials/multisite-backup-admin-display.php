@@ -38,6 +38,13 @@ if (isset($_POST['action'])) {
 $sites = get_sites(['number' => 0]);
 $backup_history = multisite_backup_get_history();
 
+// Determine active tab
+$current_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'backup-create';
+$valid_tabs = ['backup-create', 'backup-history', 'backup-settings'];
+if (!in_array($current_tab, $valid_tabs)) {
+    $current_tab = 'backup-create';
+}
+
 ?>
 
 <!-- This file should primarily consist of HTML with a little bit of PHP. -->
@@ -48,13 +55,19 @@ $backup_history = multisite_backup_get_history();
     <div class="multisite-backup-container">
         <!-- Navigation Tabs -->
         <nav class="nav-tab-wrapper">
-            <a href="#backup-create" class="nav-tab nav-tab-active" data-tab="backup-create">Create Backup</a>
-            <a href="#backup-history" class="nav-tab" data-tab="backup-history">Backup History</a>
-            <a href="#backup-settings" class="nav-tab" data-tab="backup-settings">Settings</a>
+            <a href="<?php echo esc_url(add_query_arg('tab', 'backup-create', admin_url('admin.php?page=multisite-backup'))); ?>" 
+               class="nav-tab <?php echo $current_tab === 'backup-create' ? 'nav-tab-active' : ''; ?>" 
+               data-tab="backup-create">Create Backup</a>
+            <a href="<?php echo esc_url(add_query_arg('tab', 'backup-history', admin_url('admin.php?page=multisite-backup'))); ?>" 
+               class="nav-tab <?php echo $current_tab === 'backup-history' ? 'nav-tab-active' : ''; ?>" 
+               data-tab="backup-history">Backup History</a>
+            <a href="<?php echo esc_url(add_query_arg('tab', 'backup-settings', admin_url('admin.php?page=multisite-backup'))); ?>" 
+               class="nav-tab <?php echo $current_tab === 'backup-settings' ? 'nav-tab-active' : ''; ?>" 
+               data-tab="backup-settings">Settings</a>
         </nav>
 
         <!-- Create Backup Tab -->
-        <div id="backup-create" class="tab-content active">
+        <div id="backup-create" class="tab-content <?php echo $current_tab === 'backup-create' ? 'active' : ''; ?>">
             <div class="postbox">
                 <div class="postbox-header">
                     <h2 class="hndle">Create New Backup</h2>
@@ -117,7 +130,7 @@ $backup_history = multisite_backup_get_history();
         </div>
 
         <!-- Backup History Tab -->
-        <div id="backup-history" class="tab-content">
+        <div id="backup-history" class="tab-content <?php echo $current_tab === 'backup-history' ? 'active' : ''; ?>">
             <div class="postbox">
                 <div class="postbox-header">
                     <h2 class="hndle">Backup History</h2>
@@ -167,7 +180,7 @@ $backup_history = multisite_backup_get_history();
         </div>
 
         <!-- Settings Tab -->
-        <div id="backup-settings" class="tab-content">
+        <div id="backup-settings" class="tab-content <?php echo $current_tab === 'backup-settings' ? 'active' : ''; ?>">
             <div class="postbox">
                 <div class="postbox-header">
                     <h2 class="hndle">Backup Settings</h2>

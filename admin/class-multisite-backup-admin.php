@@ -100,7 +100,11 @@ class Multisite_Backup_Admin
 		 * class.
 		 */
 
-		wp_enqueue_script($this->plugin_name, plugin_dir_url(__FILE__) . 'js/multisite-backup-admin.js', array('jquery'), $this->version, false);
+		// Enqueue SweetAlert2
+		wp_enqueue_script('sweetalert2', 'https://cdn.jsdelivr.net/npm/sweetalert2@11', array(), '11.0.0', false);
+
+		// Enqueue plugin script
+		wp_enqueue_script($this->plugin_name, plugin_dir_url(__FILE__) . 'js/multisite-backup-admin.js', array('jquery', 'sweetalert2'), $this->version, false);
 
 	}
 

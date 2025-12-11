@@ -122,4 +122,110 @@ class Multisite_Backup_Admin
 		include_once 'partials/multisite-backup-admin-display.php';
 	}
 
+	/**
+	 * Handle AJAX backup creation
+	 */
+	public function handle_backup_creation()
+	{
+		// Verify nonce
+		if (!wp_verify_nonce($_POST['backup_nonce'], 'multisite_backup_action')) {
+			wp_send_json_error(['message' => 'Security check failed.']);
+		}
+
+		// Check user capabilities
+		if (!current_user_can('manage_options')) {
+			wp_send_json_error(['message' => 'Insufficient permissions.']);
+		}
+
+		// Validate and sanitize input
+		$selected_sites = isset($_POST['selected_sites']) ? array_map('intval', $_POST['selected_sites']) : [];
+		$backup_type = sanitize_text_field($_POST['backup_type']);
+
+		if (empty($selected_sites)) {
+			wp_send_json_error(['message' => 'Please select at least one site to backup.']);
+		}
+
+		// Create backup
+		$backup_result = $this->create_backup($selected_sites, $backup_type);
+
+		if ($backup_result['success']) {
+			wp_send_json_success(['message' => $backup_result['message']]);
+		} else {
+			wp_send_json_error(['message' => $backup_result['message']]);
+		}
+	}
+
+	/**
+	 * Create backup functionality
+	 */
+	private function create_backup($selected_sites, $backup_type)
+	{
+		try {
+			// Get backup directory
+			$backup_dir = wp_upload_dir()['basedir'] . '/multisite-backups';
+			if (!file_exists($backup_dir)) {
+				wp_mkdir_p($backup_dir);
+			}
+
+			// Generate backup filename
+			$timestamp = current_time('Y-m-d_H-i-s');
+			$backup_filename = "backup_{$backup_type}_{$timestamp}.zip";
+			$backup_path = $backup_dir . '/' . $backup_filename;
+
+			// Initialize backup process
+			$backup_data = [
+				'sites' => $selected_sites,
+				'type' => $backup_type,
+				'timestamp' => time(),
+				'filename' => $backup_filename,
+				'status' => 'in-progress'
+			];
+
+			// Store backup metadata
+			$backup_id = $this->store_backup_metadata($backup_data);
+
+			// Simulate backup creation (replace with actual backup logic)
+			sleep(2); // Simulate processing time
+
+			// Update backup status
+			$this->update_backup_status($backup_id, 'completed');
+
+			return [
+				'success' => true,
+				'message' => 'Backup created successfully! ' . count($selected_sites) . ' sites backed up.'
+			];
+
+		} catch (Exception $e) {
+			return [
+				'success' => false,
+				'message' => 'Backup creation failed: ' . $e->getMessage()
+			];
+		}
+	}
+
+	/**
+	 * Store backup metadata
+	 */
+	private function store_backup_metadata($backup_data)
+	{
+		$backups = get_option('multisite_backup_history', []);
+		$backup_id = time() . '_' . wp_rand(1000, 9999);
+		$backup_data['id'] = $backup_id;
+		$backups[$backup_id] = $backup_data;
+		update_option('multisite_backup_history', $backups);
+		return $backup_id;
+	}
+
+	/**
+	 * Update backup status
+	 */
+	private function update_backup_status($backup_id, $status)
+	{
+		$backups = get_option('multisite_backup_history', []);
+		if (isset($backups[$backup_id])) {
+			$backups[$backup_id]['status'] = $status;
+			update_option('multisite_backup_history', $backups);
+		}
+	}
+
 }

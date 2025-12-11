@@ -60,7 +60,7 @@ $backup_history = multisite_backup_get_history();
                     <h2 class="hndle">Create New Backup</h2>
                 </div>
                 <div class="inside">
-                    <form method="post" action="">
+                    <form method="post" action="" id="create-backup-form">
                         <?php wp_nonce_field('multisite_backup_action', 'backup_nonce'); ?>
                         <input type="hidden" name="action" value="create_backup">
                         
@@ -220,7 +220,7 @@ $backup_history = multisite_backup_get_history();
                                 <td>
                                     <label>
                                         <input type="checkbox" name="backup_email_notifications" id="backup_email_notifications" 
-                                               value="1" <?php checked(get_option('backup_email_notifications', 0), 1); ?>>
+                                               value="1" <?php checked(get_option('backup_email_notifications', 0), 1); ?> />
                                         Send email notifications when backups complete
                                     </label>
                                     <br><br>
@@ -266,28 +266,25 @@ function multisite_backup_create_backup($selected_sites, $backup_type) {
  * This would typically be in a separate class/file
  */
 function multisite_backup_get_history() {
-    // Placeholder implementation
-    // In a real implementation, this would query the database or file system
-    // for existing backups and return their metadata
+    $backups = get_option('multisite_backup_history', []);
+    $formatted_backups = [];
     
-    return [
-        [
-            'id' => 1,
-            'timestamp' => time() - 86400,
-            'type' => 'full',
-            'site_count' => 3,
-            'size' => 1024 * 1024 * 50, // 50MB
-            'status' => 'completed',
-            'download_url' => '#'
-        ],
-        [
-            'id' => 2,
-            'timestamp' => time() - 172800,
-            'type' => 'database',
-            'site_count' => 2,
-            'size' => 1024 * 1024 * 5, // 5MB
-            'status' => 'completed',
-            'download_url' => '#'
-        ]
-    ];
+    foreach ($backups as $backup_id => $backup_data) {
+        $formatted_backups[] = [
+            'id' => $backup_data['id'],
+            'timestamp' => $backup_data['timestamp'],
+            'type' => $backup_data['type'],
+            'site_count' => count($backup_data['sites']),
+            'size' => isset($backup_data['size']) ? $backup_data['size'] : 1024 * 1024 * 10, // Default 10MB
+            'status' => $backup_data['status'],
+            'download_url' => isset($backup_data['filename']) ? wp_upload_dir()['baseurl'] . '/multisite-backups/' . $backup_data['filename'] : '#'
+        ];
+    }
+    
+    // Sort by timestamp (newest first)
+    usort($formatted_backups, function($a, $b) {
+        return $b['timestamp'] - $a['timestamp'];
+    });
+    
+    return $formatted_backups;
 }

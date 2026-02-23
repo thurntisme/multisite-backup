@@ -297,6 +297,9 @@ class Multisite_Backup_Admin
 		if (empty($selected_sites)) {
 			wp_send_json_error(['message' => 'Please select one site to backup.']);
 		}
+		if (in_array(1, $selected_sites, true)) {
+			wp_send_json_error(['message' => 'Backing up the main site is not allowed.']);
+		}
 
 		// Create backup
 		$backup_result = $this->create_backup($selected_sites, $backup_type);

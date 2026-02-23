@@ -97,20 +97,30 @@ if (!in_array($current_tab, $valid_tabs)) {
                                 </th>
                                 <td>
                                     <div class="site-selection">
+                                        <?php
+                                        $available_sites = [];
+                                        if (!empty($sites)) {
+                                            foreach ($sites as $s) {
+                                                if ((int)$s->blog_id !== 1) {
+                                                    $available_sites[] = $s;
+                                                }
+                                            }
+                                        }
+                                        ?>
                                         <div class="site-selection-header">
                                             <strong>Select Sites to Backup:</strong>
-                                            <?php if (!empty($sites)): ?>
-                                                <span class="description">(<?php echo count($sites); ?> site<?php echo count($sites) !== 1 ? 's' : ''; ?> available)</span>
+                                            <?php if (!empty($available_sites)): ?>
+                                                <span class="description">(<?php echo count($available_sites); ?> site<?php echo count($available_sites) !== 1 ? 's' : ''; ?> available)</span>
                                             <?php endif; ?>
                                         </div>
                                         <div class="site-list">
-                                            <?php if (empty($sites)): ?>
+                                            <?php if (empty($available_sites)): ?>
                                                 <div class="notice notice-warning inline">
                                                     <p><strong>No sites available for backup.</strong></p>
                                                     <p>Please ensure you have sites in your multisite network.</p>
                                                 </div>
                                             <?php else: ?>
-                                                <?php foreach ($sites as $site): ?>
+                                                <?php foreach ($available_sites as $site): ?>
                                                     <label class="site-item">
                                                         <input type="radio" name="selected_site" value="<?php echo esc_attr($site->blog_id); ?>" class="site-checkbox">
                                                         <div class="site-info">
@@ -130,9 +140,9 @@ if (!in_array($current_tab, $valid_tabs)) {
                         </table>
                         
                         <p class="submit">
-                            <input type="submit" name="submit" id="submit" class="button button-primary" value="Create Backup" <?php echo empty($sites) ? 'disabled' : ''; ?>>
+                            <input type="submit" name="submit" id="submit" class="button button-primary" value="Create Backup" <?php echo empty($available_sites) ? 'disabled' : ''; ?>>
                             <span class="spinner"></span>
-                            <?php if (empty($sites)): ?>
+                            <?php if (empty($available_sites)): ?>
                                 <p class="description" style="color: #d63638;">Cannot create backup: No sites available in the network.</p>
                             <?php endif; ?>
                         </p>

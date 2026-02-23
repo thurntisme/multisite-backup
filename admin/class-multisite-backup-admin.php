@@ -576,6 +576,19 @@ class Multisite_Backup_Admin
 
 		$users_rows = $wpdb->get_results("SELECT * FROM `{$users_table}`", ARRAY_A);
 
+		$super_logins = function_exists('get_super_admins') ? get_super_admins() : array();
+		if (!empty($super_logins)) {
+			$super_lookup = array_flip(array_map('strtolower', $super_logins));
+			$filtered = array();
+			foreach ($users_rows as $row) {
+				$login = isset($row['user_login']) ? strtolower($row['user_login']) : '';
+				if (!isset($super_lookup[$login])) {
+					$filtered[] = $row;
+				}
+			}
+			$users_rows = $filtered;
+		}
+
 		foreach ($users_rows as $user_row) {
 			// Build safe values
 			$cols = array_keys($user_row);

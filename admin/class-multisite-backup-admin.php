@@ -758,6 +758,10 @@ class Multisite_Backup_Admin
 		foreach ($iterator as $file) {
 			$file_path = $file->getRealPath();
 			$relative_path = substr($file_path, strlen($source_dir) + 1);
+			$normalized_rel = str_replace('\\', '/', $relative_path);
+			if (strpos($normalized_rel, 'files/wp-content/uploads/sites/') === 0) {
+				continue;
+			}
 
 			if ($file->isDir()) {
 				$zip->addEmptyDir($relative_path);

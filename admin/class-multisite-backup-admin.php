@@ -1302,7 +1302,7 @@ class Multisite_Backup_Admin
 			$import_id = $this->store_import_metadata($import_data);
 
 			// Process full import (all components)
-			$this->import_database($extract_dir, $import_mode);
+			$this->import_database($extract_dir, $import_mode, $target_sites);
 			$this->import_files($extract_dir, $import_mode);
 			$this->import_users($extract_dir, $import_mode);
 			$this->import_settings($extract_dir, $import_mode);
@@ -1343,7 +1343,7 @@ class Multisite_Backup_Admin
 	/**
 	 * Import database from backup
 	 */
-	private function import_database($extract_dir, $import_mode)
+	private function import_database($extract_dir, $import_mode, $target_sites = array())
 	{
 		global $wpdb;
 
@@ -1352,19 +1352,54 @@ class Multisite_Backup_Admin
 			return;
 		}
 
-		// Import SQL files
 		$sql_files = glob($db_dir . '/*.sql');
 
-		foreach ($sql_files as $sql_file) {
-			$sql_content = file_get_contents($sql_file);
-
-			if ($import_mode === 'replace') {
-				// Drop existing tables before import (be very careful with this)
-				// This is a simplified implementation - in production, you'd want more sophisticated handling
+		// Handle users.sql globally (wp_users/wp_usermeta are network-wide and should NOT be site-prefixed)
+		$user_sql_files = array();
+		$site_sql_files = array();
+		foreach ($sql_files as $file) {
+			if (strtolower(basename($file)) === 'users.sql') {
+				$user_sql_files[] = $file;
+			} else {
+				$site_sql_files[] = $file;
 			}
+		}
 
-			// Execute SQL (in chunks for large files)
-			$this->execute_sql($sql_content);
+		// Execute users.sql as-is (the dump should use ON DUPLICATE KEY UPDATE upserts)
+		foreach ($user_sql_files as $user_sql) {
+			$sql_content = file_get_contents($user_sql);
+			if (!empty($sql_content)) {
+				$this->execute_sql($sql_content);
+			}
+		}
+
+		// Require target sites for site-specific SQL (e.g., site.sql)
+		if (empty($target_sites) || !is_array($target_sites) || empty($site_sql_files)) {
+			return;
+		}
+
+		foreach ($target_sites as $site) {
+			$site_id = is_array($site) ? (isset($site['id']) ? intval($site['id']) : 0) : intval($site);
+			if ($site_id <= 0) {
+				continue;
+			}
+			foreach ($site_sql_files as $sql_file) {
+				$sql_content = file_get_contents($sql_file);
+				$rewritten = $this->rewrite_sql_for_site($sql_content, $site_id);
+				if ($import_mode === 'replace') {
+					$tables = $this->extract_tables_from_sql($rewritten, $wpdb->base_prefix . $site_id . '_');
+					if (!empty($tables)) {
+						$wpdb->query('SET FOREIGN_KEY_CHECKS=0');
+						foreach ($tables as $t) {
+							$wpdb->query("DROP TABLE IF EXISTS `$t`");
+						}
+						$wpdb->query('SET FOREIGN_KEY_CHECKS=1');
+					}
+				}
+				$wpdb->query('SET FOREIGN_KEY_CHECKS=0');
+				$this->execute_sql($rewritten);
+				$wpdb->query('SET FOREIGN_KEY_CHECKS=1');
+			}
 		}
 	}
 
@@ -1423,7 +1458,6 @@ class Multisite_Backup_Admin
 	{
 		global $wpdb;
 
-		// Split SQL into individual queries
 		$queries = explode(';', $sql_content);
 
 		foreach ($queries as $query) {
@@ -1432,6 +1466,29 @@ class Multisite_Backup_Admin
 				$wpdb->query($query);
 			}
 		}
+	}
+
+	private function rewrite_sql_for_site($sql, $site_id)
+	{
+		global $wpdb;
+		$base = $wpdb->base_prefix;
+		$target = $base . $site_id . '_';
+		$sql = preg_replace('/`' . preg_quote($base, '/') . '([A-Za-z0-9_]+)`/', '`' . $target . '$1`', $sql);
+		$sql = preg_replace('/\b' . preg_quote($base, '/') . '([A-Za-z0-9_]+)/', $target . '$1', $sql);
+		return $sql;
+	}
+
+	private function extract_tables_from_sql($sql, $target_prefix)
+	{
+		$tables = array();
+		if (preg_match_all('/CREATE\s+TABLE\s+`?([A-Za-z0-9_]+)`?/i', $sql, $matches)) {
+			foreach ($matches[1] as $tbl) {
+				if (strpos($tbl, $target_prefix) === 0) {
+					$tables[] = $tbl;
+				}
+			}
+		}
+		return array_unique($tables);
 	}
 
 	/**

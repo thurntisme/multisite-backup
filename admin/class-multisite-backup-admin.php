@@ -1412,6 +1412,7 @@ class Multisite_Backup_Admin
 				$wpdb->query('SET FOREIGN_KEY_CHECKS=0');
 				$this->execute_sql($rewritten);
 				$wpdb->query('SET FOREIGN_KEY_CHECKS=1');
+				$this->set_site_posts_author_to_super_admin($site_id);
 			}
 		}
 	}
@@ -1451,8 +1452,104 @@ class Multisite_Backup_Admin
 	 */
 	private function import_users($extract_dir, $import_mode)
 	{
-		// Placeholder for user import functionality
-		// This would involve parsing user data and creating/updating user accounts
+		if (!is_multisite()) {
+			return;
+		}
+		$users_sql_path = $extract_dir . '/database/users.sql';
+		if (!file_exists($users_sql_path)) {
+			return;
+		}
+		$contents = file_get_contents($users_sql_path);
+		if (!$contents) {
+			return;
+		}
+		$logins = array();
+		$emails = array();
+		if (preg_match_all('/^--\s*Upsert\s+user:\s*(.+)\s*$/mi', $contents, $m1)) {
+			foreach ($m1[1] as $login) {
+				$login = trim($login);
+				if ($login !== '') {
+					$logins[strtolower($login)] = true;
+				}
+			}
+		}
+		if (preg_match_all("/WHERE\\s+`user_login`\\s*=\\s*'([^']+)'\\s+OR\\s+`user_email`\\s*=\\s*'([^']+)'/mi", $contents, $m2)) {
+			$count = count($m2[0]);
+			for ($i = 0; $i < $count; $i++) {
+				$l = trim($m2[1][$i]);
+				$e = trim($m2[2][$i]);
+				if ($l !== '') {
+					$logins[strtolower($l)] = true;
+				}
+				if ($e !== '') {
+					$emails[strtolower($e)] = true;
+				}
+			}
+		}
+		if (empty($logins) && empty($emails)) {
+			return;
+		}
+		$user_ids = array();
+		foreach (array_keys($logins) as $login) {
+			$user = get_user_by('login', $login);
+			if ($user && isset($user->ID)) {
+				$user_ids[intval($user->ID)] = true;
+			}
+		}
+		foreach (array_keys($emails) as $email) {
+			$user = get_user_by('email', $email);
+			if ($user && isset($user->ID)) {
+				$user_ids[intval($user->ID)] = true;
+			}
+		}
+		if (empty($user_ids)) {
+			return;
+		}
+		$imports = get_option('multisite_backup_import_history', array());
+		$last_import = null;
+		if (is_array($imports) && !empty($imports)) {
+			end($imports);
+			$last_import = current($imports);
+			reset($imports);
+		}
+		$targets = array();
+		if ($last_import && isset($last_import['target_sites']) && is_array($last_import['target_sites'])) {
+			foreach ($last_import['target_sites'] as $site) {
+				$site_id = is_array($site) ? (isset($site['id']) ? intval($site['id']) : 0) : intval($site);
+				if ($site_id > 0) {
+					$targets[] = $site_id;
+				}
+			}
+		}
+		if (empty($targets)) {
+			$targets[] = 1;
+		}
+		$super_logins = function_exists('get_super_admins') ? get_super_admins() : array();
+		$super_lookup = array_flip(array_map('strtolower', $super_logins));
+		foreach (array_keys($user_ids) as $uid) {
+			$user_obj = get_user_by('id', $uid);
+			if (!$user_obj) {
+				continue;
+			}
+			if (isset($super_lookup[strtolower($user_obj->user_login)])) {
+				continue;
+			}
+			foreach ($targets as $site_id) {
+				if (!function_exists('is_user_member_of_blog') || !function_exists('add_user_to_blog')) {
+					continue;
+				}
+				if (!is_user_member_of_blog($uid, $site_id)) {
+					add_user_to_blog($site_id, $uid, 'subscriber');
+				} elseif ($import_mode === 'replace') {
+					switch_to_blog($site_id);
+					$wp_user = new WP_User($uid);
+					if ($wp_user) {
+						$wp_user->set_role('subscriber');
+					}
+					restore_current_blog();
+				}
+			}
+		}
 	}
 
 	/**
@@ -1529,10 +1626,37 @@ class Multisite_Backup_Admin
 	{
 		global $wpdb;
 		$base = $wpdb->base_prefix;
+		if (intval($site_id) === 1) {
+			return $sql;
+		}
 		$target = $base . $site_id . '_';
 		$sql = preg_replace('/`' . preg_quote($base, '/') . '([A-Za-z0-9_]+)`/', '`' . $target . '$1`', $sql);
-		$sql = preg_replace('/\b' . preg_quote($base, '/') . '([A-Za-z0-9_]+)/', $target . '$1', $sql);
 		return $sql;
+	}
+
+	private function set_site_posts_author_to_super_admin($site_id)
+	{
+		if (!is_multisite()) {
+			return;
+		}
+		$super_logins = function_exists('get_super_admins') ? get_super_admins() : array();
+		if (empty($super_logins)) {
+			return;
+		}
+		$super = get_user_by('login', $super_logins[0]);
+		if (!$super || !isset($super->ID)) {
+			return;
+		}
+		$target_site = intval($site_id);
+		if ($target_site <= 0) {
+			return;
+		}
+		switch_to_blog($target_site);
+		global $wpdb;
+		$table = $wpdb->posts;
+		$author_id = intval($super->ID);
+		$wpdb->query("UPDATE `{$table}` SET `post_author` = {$author_id} WHERE `post_type` IN ('post','page')");
+		restore_current_blog();
 	}
 
 	private function extract_tables_from_sql($sql, $target_prefix)

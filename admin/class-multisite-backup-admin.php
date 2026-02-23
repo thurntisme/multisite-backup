@@ -424,23 +424,21 @@ class Multisite_Backup_Admin
 		wp_mkdir_p($db_dir);
 
 		$total_size = 0;
+		$single_site = count($selected_sites) === 1;
 
-		// Export main site tables if site 1 is selected
 		if (in_array(1, $selected_sites)) {
-			$main_sql_file = $db_dir . '/main_site.sql';
-			$total_size += $this->export_site_database(1, $main_sql_file);
+			$main_sql_file = $db_dir . '/' . ($single_site ? 'site.sql' : 'main_site.sql');
+			$total_size += $this->export_site_database(1, $main_sql_file, $single_site);
 		}
 
-		// Export individual site databases
 		foreach ($selected_sites as $site_id) {
 			if ($site_id == 1)
-				continue; // Already handled above
+				continue;
 
-			$site_sql_file = $db_dir . "/site_{$site_id}.sql";
-			$total_size += $this->export_site_database($site_id, $site_sql_file);
+			$site_sql_file = $db_dir . '/' . ($single_site ? 'site.sql' : "site_{$site_id}.sql");
+			$total_size += $this->export_site_database($site_id, $site_sql_file, $single_site);
 		}
 
-		// Export users table (shared across multisite)
 		$users_sql_file = $db_dir . '/users.sql';
 		$total_size += $this->export_users_table($users_sql_file);
 
@@ -452,7 +450,7 @@ class Multisite_Backup_Admin
 	/**
 	 * Export individual site database
 	 */
-	private function export_site_database($site_id, $output_file)
+	private function export_site_database($site_id, $output_file, $normalize_prefix = false)
 	{
 		global $wpdb;
 
@@ -470,7 +468,9 @@ class Multisite_Backup_Admin
 		$tables = $wpdb->get_results("SHOW TABLES LIKE '{$site_prefix}%'", ARRAY_N);
 
 		$sql_content = "-- WordPress Multisite Backup\n";
-		$sql_content .= "-- Site ID: {$site_id}\n";
+		if (!$normalize_prefix) {
+			$sql_content .= "-- Site ID: {$site_id}\n";
+		}
 		$sql_content .= "-- Date: " . current_time('mysql') . "\n\n";
 
 		foreach ($tables as $table) {
@@ -488,6 +488,14 @@ class Multisite_Backup_Admin
 		// Restore original site
 		if ($site_id > 1) {
 			restore_current_blog();
+		}
+
+		// Normalize multisite table prefix to base prefix for portability
+		if ($normalize_prefix && $site_id > 1) {
+			$from = $wpdb->base_prefix . $site_id . '_';
+			$to = $wpdb->base_prefix;
+			$sql_content = str_replace($from, $to, $sql_content);
+			$sql_content = str_replace("`{$from}", "`{$to}", $sql_content);
 		}
 
 		file_put_contents($output_file, $sql_content);

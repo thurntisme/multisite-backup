@@ -265,6 +265,62 @@ class Multisite_Backup_Admin
 	}
 
 	/**
+	 * Handle AJAX bulk delete backups
+	 */
+	public function handle_delete_backups()
+	{
+		// Check multisite and main site requirements
+		if (!is_multisite() || !is_main_site()) {
+			wp_send_json_error(['message' => 'Access denied. This feature is only available on the main site of a multisite network.']);
+		}
+
+		// Check user capabilities
+		if (!current_user_can('manage_options')) {
+			wp_send_json_error(['message' => 'Insufficient permissions.']);
+		}
+
+		// Verify nonce
+		if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'multisite_backup_nonce')) {
+			wp_send_json_error(['message' => 'Security check failed.']);
+		}
+
+		$ids = isset($_POST['ids']) ? (array) $_POST['ids'] : [];
+		$ids = array_filter(array_map('sanitize_text_field', $ids));
+
+		if (empty($ids)) {
+			wp_send_json_error(['message' => 'No backups selected.']);
+		}
+
+		$backups = get_option('multisite_backup_history', []);
+		$removed = [];
+
+		foreach ($ids as $id) {
+			if (!isset($backups[$id])) {
+				continue;
+			}
+			$entry = $backups[$id];
+			// Try to delete the file
+			$path = isset($entry['path']) ? $entry['path'] : '';
+			if (!$path && isset($entry['filename'])) {
+				$storage_dir = get_option('backup_storage_path', WP_CONTENT_DIR . '/multisite-backups');
+				$path = rtrim($storage_dir, '/\\') . DIRECTORY_SEPARATOR . $entry['filename'];
+			}
+			if ($path && file_exists($path)) {
+				@unlink($path);
+			}
+			unset($backups[$id]);
+			$removed[] = $id;
+		}
+
+		update_option('multisite_backup_history', $backups);
+
+		wp_send_json_success([
+			'message' => 'Selected backups deleted successfully.',
+			'removed' => $removed
+		]);
+	}
+
+	/**
 	 * Handle AJAX backup creation
 	 */
 	public function handle_backup_creation()

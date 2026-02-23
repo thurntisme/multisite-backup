@@ -68,9 +68,51 @@
 			e.preventDefault();
 			if (confirm('Are you sure you want to delete this backup?')) {
 				var backupId = $(this).data('backup-id');
-				// Implement delete functionality
-				console.log('Delete backup:', backupId);
+				$.post(multisite_backup_ajax.ajax_url, {
+					action: 'multisite_backup_delete_backups',
+					ids: [backupId],
+					nonce: multisite_backup_ajax.nonce
+				}).done(function(resp) {
+					if (resp && resp.success) {
+						location.reload();
+					} else {
+						alert(resp && resp.data && resp.data.message ? resp.data.message : 'Delete failed.');
+					}
+				}).fail(function() {
+					alert('Delete failed due to a server error.');
+				});
 			}
+		});
+		
+		// Select all checkbox
+		$('#cb-select-all-1').on('change', function() {
+			var isChecked = $(this).is(':checked');
+			$('.backup-select').prop('checked', isChecked);
+		});
+		
+		// Bulk delete selected backups
+		$('#delete-selected-backups').on('click', function() {
+			var ids = $('.backup-select:checked').map(function() { return $(this).val(); }).get();
+			if (ids.length === 0) {
+				alert('Please select at least one backup to delete.');
+				return;
+			}
+			if (!confirm('Delete ' + ids.length + ' selected backup(s)? This action cannot be undone.')) {
+				return;
+			}
+			$.post(multisite_backup_ajax.ajax_url, {
+				action: 'multisite_backup_delete_backups',
+				ids: ids,
+				nonce: multisite_backup_ajax.nonce
+			}).done(function(resp) {
+				if (resp && resp.success) {
+					location.reload();
+				} else {
+					alert(resp && resp.data && resp.data.message ? resp.data.message : 'Bulk delete failed.');
+				}
+			}).fail(function() {
+				alert('Bulk delete failed due to a server error.');
+			});
 		});
 		
 		// Handle create backup form submission

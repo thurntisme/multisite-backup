@@ -167,6 +167,7 @@ class Multisite_Backup
 		$this->loader->add_action('wp_ajax_multisite_backup_scan', $plugin_admin, 'handle_backup_scan');
 		$this->loader->add_action('wp_ajax_multisite_backup_import', $plugin_admin, 'handle_backup_import');
 		$this->loader->add_action('wp_ajax_multisite_backup_get_sites', $plugin_admin, 'handle_get_sites');
+		$this->loader->add_action('wp_ajax_multisite_backup_delete_backups', $plugin_admin, 'handle_delete_backups');
 
 	}
 

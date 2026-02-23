@@ -172,6 +172,9 @@ if (!in_array($current_tab, $valid_tabs)) {
                         <table class="wp-list-table widefat fixed striped">
                             <thead>
                                 <tr>
+                                    <th scope="col" class="manage-column column-cb check-column">
+                                        <input type="checkbox" id="cb-select-all-1" />
+                                    </th>
                                     <th scope="col">Date</th>
                                     <th scope="col">Type</th>
                                     <th scope="col">Sites</th>
@@ -183,6 +186,9 @@ if (!in_array($current_tab, $valid_tabs)) {
                             <tbody>
                                 <?php foreach ($backup_history as $backup): ?>
                                     <tr>
+                                        <th scope="row" class="check-column">
+                                            <input type="checkbox" class="backup-select" name="selected_backups[]" value="<?php echo esc_attr($backup['id']); ?>" />
+                                        </th>
                                         <td><?php echo esc_html(date('Y-m-d H:i:s', $backup['timestamp'])); ?></td>
                                         <td>
                                             <span class="backup-type backup-type-<?php echo esc_attr($backup['type']); ?>">
@@ -204,8 +210,11 @@ if (!in_array($current_tab, $valid_tabs)) {
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
-                        <?php if ($total_pages > 1): ?>
+                        <?php if ($total_pages > 0): ?>
                             <div class="tablenav">
+                                <div class="alignleft actions">
+                                    <button type="button" class="button button-secondary" id="delete-selected-backups">Delete Selected</button>
+                                </div>
                                 <div class="tablenav-pages">
                                     <?php
                                     $base_url = add_query_arg(array('tab' => 'backup-history'), admin_url('admin.php?page=multisite-backup'));

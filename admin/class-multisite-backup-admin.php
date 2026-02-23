@@ -56,6 +56,20 @@ class Multisite_Backup_Admin
 
 	}
 
+	public function register_settings()
+	{
+		register_setting('multisite_backup_settings', 'backup_storage_path', array(
+			'type' => 'string',
+			'sanitize_callback' => 'sanitize_text_field'
+		));
+		$current = get_option('backup_storage_path', '');
+		$old_default = WP_CONTENT_DIR . '/backups';
+		$new_default = WP_CONTENT_DIR . '/multisite-backups';
+		if ($current === '' || $current === $old_default) {
+			update_option('backup_storage_path', $new_default);
+		}
+	}
+
 	/**
 	 * Register the stylesheets for the admin area.
 	 *
@@ -294,8 +308,8 @@ class Multisite_Backup_Admin
 	private function create_backup($selected_sites, $backup_type)
 	{
 		try {
-			// Get backup directory
-			$backup_dir = wp_upload_dir()['basedir'] . '/multisite-backups';
+			$storage_dir = get_option('backup_storage_path', WP_CONTENT_DIR . '/multisite-backups');
+			$backup_dir = rtrim($storage_dir, '/\\');
 			if (!file_exists($backup_dir)) {
 				wp_mkdir_p($backup_dir);
 			}

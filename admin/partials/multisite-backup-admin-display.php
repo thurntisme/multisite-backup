@@ -211,7 +211,7 @@ if (!in_array($current_tab, $valid_tabs)) {
                                 </th>
                                 <td>
                                     <input type="text" name="backup_storage_path" id="backup_storage_path" 
-                                           value="<?php echo esc_attr(get_option('backup_storage_path', WP_CONTENT_DIR . '/backups')); ?>" 
+                                           value="<?php echo esc_attr(get_option('backup_storage_path', WP_CONTENT_DIR . '/multisite-backups')); ?>" 
                                            class="regular-text">
                                     <p class="description">Directory where backups will be stored.</p>
                                 </td>
@@ -296,6 +296,15 @@ function multisite_backup_create_backup($selected_sites, $backup_type) {
 function multisite_backup_get_history() {
     $backups = get_option('multisite_backup_history', []);
     $formatted_backups = [];
+    $storage_path = get_option('backup_storage_path', WP_CONTENT_DIR . '/multisite-backups');
+    $base_url = '';
+    if (strpos($storage_path, WP_CONTENT_DIR) === 0) {
+        $relative = ltrim(str_replace(WP_CONTENT_DIR, '', $storage_path), '/\\');
+        $base_url = trailingslashit(content_url()) . str_replace(DIRECTORY_SEPARATOR, '/', $relative);
+    } else {
+        $uploads = wp_upload_dir();
+        $base_url = $uploads['baseurl'] . '/multisite-backups';
+    }
     
     foreach ($backups as $backup_id => $backup_data) {
         $formatted_backups[] = [
@@ -303,9 +312,9 @@ function multisite_backup_get_history() {
             'timestamp' => $backup_data['timestamp'],
             'type' => $backup_data['type'],
             'site_count' => count($backup_data['sites']),
-            'size' => isset($backup_data['size']) ? $backup_data['size'] : 1024 * 1024 * 10, // Default 10MB
+            'size' => isset($backup_data['size']) ? $backup_data['size'] : 1024 * 1024 * 10,
             'status' => $backup_data['status'],
-            'download_url' => isset($backup_data['filename']) ? wp_upload_dir()['baseurl'] . '/multisite-backups/' . $backup_data['filename'] : '#'
+            'download_url' => isset($backup_data['filename']) ? rtrim($base_url, '/'). '/' . $backup_data['filename'] : '#'
         ];
     }
     

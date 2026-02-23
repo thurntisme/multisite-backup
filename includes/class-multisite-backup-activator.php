@@ -30,7 +30,13 @@ class Multisite_Backup_Activator {
 	 * @since    1.0.0
 	 */
 	public static function activate() {
-
+		$path = get_option('backup_storage_path', '');
+		$default = WP_CONTENT_DIR . '/multisite-backups';
+		if ($path === '') {
+			add_option('backup_storage_path', $default);
+		} elseif ($path === WP_CONTENT_DIR . '/backups') {
+			update_option('backup_storage_path', $default);
+		}
 	}
 
 }

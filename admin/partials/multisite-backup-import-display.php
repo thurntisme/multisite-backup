@@ -65,6 +65,40 @@ if (isset($_POST['action'])) {
                                 </p>
                             </td>
                         </tr>
+                        <tr>
+                            <th scope="row">
+                                <label for="target_site">Target Site</label>
+                            </th>
+                            <td>
+                                <?php
+                                $sites = function_exists('get_sites') ? get_sites(['number' => 0]) : [];
+                                $non_main_sites = [];
+                                if (!empty($sites)) {
+                                    foreach ($sites as $s) {
+                                        if ((int)$s->blog_id !== 1) {
+                                            $non_main_sites[] = $s;
+                                        }
+                                    }
+                                }
+                                ?>
+                                <?php if (empty($non_main_sites)): ?>
+                                    <select id="target_site" name="target_site" class="regular-text" disabled>
+                                        <option value="">No sub-sites available</option>
+                                    </select>
+                                    <p class="description">Only the main site exists. Import will target the main site if applicable.</p>
+                                <?php else: ?>
+                                    <select id="target_site" name="target_site" class="regular-text" required>
+                                        <option value="">Select a site…</option>
+                                        <?php foreach ($non_main_sites as $site): ?>
+                                            <option value="<?php echo esc_attr($site->blog_id); ?>">
+                                                <?php echo esc_html(get_blog_option($site->blog_id, 'blogname') . ' (' . $site->domain . $site->path . ')'); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <p class="description">Choose which sub-site to import this backup into.</p>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
 
 
                     </table>

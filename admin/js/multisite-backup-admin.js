@@ -637,6 +637,9 @@
 		
 		// Function to show the actual import mode popup with sites
 		function showImportModePopup(file, scanResults, $form, sites) {
+			// Check if a target site is preselected in the dropdown
+			var preselectedSiteId = $('#target_site').length ? $('#target_site').val() : '';
+			
 			// Build scan results summary for display
 			var scanSummaryHtml = '';
 			if (scanResults.components.length > 0) {
@@ -671,7 +674,7 @@
 				`;
 			}
 			
-			// Build sites selection HTML (exclude main site)
+			// Build sites selection HTML (exclude main site). If preselected via dropdown, show info instead.
 			var sitesHtml = '';
 			if (sites && sites.length > 0) {
 				// Filter out the main site
@@ -680,25 +683,40 @@
 				});
 				
 				if (nonMainSites.length > 0) {
-					sitesHtml = `
-						<h4 style="margin: 20px 0 10px 0; color: #0073aa;">🌐 Select Target Site(s):</h4>
-						<div style="margin: 15px 0; max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px; background: #f9f9f9;">
-					`;
-					
-					nonMainSites.forEach(function(site) {
-						var siteLabel = site.name || 'Unnamed Site';
-						var siteUrl = site.url || site.domain + site.path;
-						
-						sitesHtml += `
-							<label style="display: block; margin: 8px 0; padding: 8px; background: white; border-radius: 3px; cursor: pointer;">
-								<input type="checkbox" name="import_target_sites" value="${site.id}" style="margin-right: 8px;">
-								<strong>${siteLabel}</strong><br>
-								<small style="color: #666; margin-left: 20px;">${siteUrl}</small>
-							</label>
+					if (preselectedSiteId) {
+						var selectedSiteData = nonMainSites.find(function(s) { return String(s.id) === String(preselectedSiteId); });
+						if (selectedSiteData) {
+							var siteLabel = selectedSiteData.name || 'Unnamed Site';
+							var siteUrl = selectedSiteData.url || selectedSiteData.domain + selectedSiteData.path;
+							sitesHtml = `
+								<h4 style="margin: 20px 0 10px 0; color: #0073aa;">🌐 Target Site:</h4>
+								<div style="margin: 10px 0; padding: 10px; background: #f0f6fc; border: 1px solid #cce5ff; border-radius: 5px;">
+									<strong>${siteLabel}</strong><br>
+									<small>${siteUrl}</small>
+								</div>
+							`;
+						}
+					} else {
+						sitesHtml = `
+							<h4 style="margin: 20px 0 10px 0; color: #0073aa;">🌐 Select Target Site(s):</h4>
+							<div style="margin: 15px 0; max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px; background: #f9f9f9;">
 						`;
-					});
-					
-					sitesHtml += '</div>';
+						
+						nonMainSites.forEach(function(site) {
+							var siteLabel = site.name || 'Unnamed Site';
+							var siteUrl = site.url || site.domain + site.path;
+							
+							sitesHtml += `
+								<label style="display: block; margin: 8px 0; padding: 8px; background: white; border-radius: 3px; cursor: pointer;">
+									<input type="checkbox" name="import_target_sites" value="${site.id}" style="margin-right: 8px;">
+									<strong>${siteLabel}</strong><br>
+									<small style="color: #666; margin-left: 20px;">${siteUrl}</small>
+								</label>
+							`;
+						});
+						
+						sitesHtml += '</div>';
+					}
 				} else {
 					sitesHtml = `
 						<div style="margin: 15px 0; padding: 15px; background: #fff3cd; border-radius: 5px; border-left: 4px solid #ffc107;">
@@ -769,26 +787,31 @@
 					const selectedMode = document.querySelector('input[name="import_mode_popup"]:checked').value;
 					
 					// Get selected sites
-					const selectedSites = [];
-					const siteCheckboxes = document.querySelectorAll('input[name="import_target_sites"]:checked');
-					siteCheckboxes.forEach(checkbox => {
-						const siteId = parseInt(checkbox.value);
-						const siteData = sites.find(site => site.id == siteId);
+					let selectedSites = [];
+					if (preselectedSiteId) {
+						const siteData = sites.find(site => String(site.id) === String(preselectedSiteId));
 						if (siteData) {
 							selectedSites.push(siteData);
 						}
-					});
-					console.log(selectedSites, sites)
-					
-					// Validate that at least one sub-site is selected
-					if (selectedSites.length === 0) {
-						Swal.fire({
-							icon: 'warning',
-							title: 'No Sites Selected',
-							text: 'Please select at least one site to import to.',
-							confirmButtonColor: '#0073aa'
+					} else {
+						const siteCheckboxes = document.querySelectorAll('input[name="import_target_sites"]:checked');
+						siteCheckboxes.forEach(checkbox => {
+							const siteId = parseInt(checkbox.value);
+							const siteData = sites.find(site => site.id == siteId);
+							if (siteData) {
+								selectedSites.push(siteData);
+							}
 						});
-						return;
+						// Validate that at least one sub-site is selected
+						if (selectedSites.length === 0) {
+							Swal.fire({
+								icon: 'warning',
+								title: 'No Sites Selected',
+								text: 'Please select at least one site to import to.',
+								confirmButtonColor: '#0073aa'
+							});
+							return;
+						}
 					}
 					
 					showImportConfirmation(file, scanResults, selectedMode, selectedSites, $form);

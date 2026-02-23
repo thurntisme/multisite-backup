@@ -1369,7 +1369,7 @@ class Multisite_Backup_Admin
 		foreach ($user_sql_files as $user_sql) {
 			$sql_content = file_get_contents($user_sql);
 			if (!empty($sql_content)) {
-				$this->execute_sql($sql_content);
+				$this->execute_sql_skip_super_admins($sql_content);
 			}
 		}
 
@@ -1465,6 +1465,50 @@ class Multisite_Backup_Admin
 			if (!empty($query)) {
 				$wpdb->query($query);
 			}
+		}
+	}
+
+	private function execute_sql_skip_super_admins($sql_content)
+	{
+		global $wpdb;
+		$super_logins = function_exists('get_super_admins') ? get_super_admins() : array();
+		$super_ids = array();
+		foreach ($super_logins as $login) {
+			$user = get_user_by('login', $login);
+			if ($user && isset($user->ID)) {
+				$super_ids[] = intval($user->ID);
+			}
+		}
+		$users_table = $wpdb->users;
+		$usermeta_table = $wpdb->usermeta;
+		$queries = explode(';', $sql_content);
+		foreach ($queries as $query) {
+			$q = trim($query);
+			if ($q === '') {
+				continue;
+			}
+			$lower_q = strtolower($q);
+			$skip = false;
+			if (strpos($lower_q, strtolower($users_table)) !== false) {
+				foreach ($super_logins as $login) {
+					if (stripos($q, "'" . $login . "'") !== false || stripos($q, '"' . $login . '"') !== false) {
+						$skip = true;
+						break;
+					}
+				}
+			}
+			if (!$skip && strpos($lower_q, strtolower($usermeta_table)) !== false) {
+				foreach ($super_ids as $sid) {
+					if (strpos($q, '(' . $sid . ',') !== false || preg_match('/[` ]user_id[` ]\s*=\s*' . preg_quote((string)$sid, '/') . '\b/i', $q)) {
+						$skip = true;
+						break;
+					}
+				}
+			}
+			if ($skip) {
+				continue;
+			}
+			$wpdb->query($q);
 		}
 	}
 

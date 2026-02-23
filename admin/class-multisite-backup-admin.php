@@ -509,18 +509,62 @@ class Multisite_Backup_Admin
 	{
 		global $wpdb;
 
-		$sql_content = "-- WordPress Users and User Meta\n";
+		$sql_content = "-- WordPress Users and User Meta (Upsert by login/email)\n";
 		$sql_content .= "-- Date: " . current_time('mysql') . "\n\n";
 
-		// Export users table
 		$users_table = $wpdb->base_prefix . 'users';
-		$sql_content .= $this->export_table_structure($users_table);
-		$sql_content .= $this->export_table_data($users_table);
-
-		// Export usermeta table
 		$usermeta_table = $wpdb->base_prefix . 'usermeta';
-		$sql_content .= $this->export_table_structure($usermeta_table);
-		$sql_content .= $this->export_table_data($usermeta_table);
+
+		$users_rows = $wpdb->get_results("SELECT * FROM `{$users_table}`", ARRAY_A);
+
+		foreach ($users_rows as $user_row) {
+			// Build safe values
+			$cols = array_keys($user_row);
+			$assignments = [];
+			$insert_cols = [];
+			$insert_vals = [];
+
+			foreach ($cols as $col) {
+				$val = $user_row[$col];
+				if ($col === 'ID') {
+					continue; // don't update/insert ID explicitly
+				}
+				$insert_cols[] = "`{$col}`";
+				if (is_null($val)) {
+					$insert_vals[] = "NULL";
+					$assignments[] = "`{$col}` = NULL";
+				} else {
+					$escaped = $wpdb->_real_escape($val);
+					$insert_vals[] = "'{$escaped}'";
+					$assignments[] = "`{$col}` = '{$escaped}'";
+				}
+			}
+
+			$login = $wpdb->_real_escape($user_row['user_login']);
+			$email = $wpdb->_real_escape($user_row['user_email']);
+
+			// Update existing by user_login OR user_email
+			$sql_content .= "-- Upsert user: {$user_row['user_login']}\n";
+			$sql_content .= "UPDATE `{$users_table}` SET " . implode(', ', $assignments) . " WHERE `user_login` = '{$login}' OR `user_email` = '{$email}';\n";
+
+			// Insert if not exists
+			$sql_content .= "INSERT INTO `{$users_table}` (" . implode(', ', $insert_cols) . ") \n";
+			$sql_content .= "SELECT " . implode(', ', $insert_vals) . " FROM DUAL \n";
+			$sql_content .= "WHERE NOT EXISTS (SELECT 1 FROM `{$users_table}` WHERE `user_login` = '{$login}' OR `user_email` = '{$email}');\n\n";
+
+			// Export and upsert usermeta for this user
+			$meta_rows = $wpdb->get_results($wpdb->prepare("SELECT * FROM `{$usermeta_table}` WHERE `user_id` = %d", $user_row['ID']), ARRAY_A);
+			foreach ($meta_rows as $meta_row) {
+				$mkey = $wpdb->_real_escape($meta_row['meta_key']);
+				$mval = is_null($meta_row['meta_value']) ? "NULL" : "'" . $wpdb->_real_escape($meta_row['meta_value']) . "'";
+				// Remove existing meta_key for that resolved user, then insert fresh
+				$sql_content .= "DELETE FROM `{$usermeta_table}` WHERE `user_id` = (SELECT `ID` FROM `{$users_table}` WHERE `user_login` = '{$login}' OR `user_email` = '{$email}' LIMIT 1) AND `meta_key` = '{$mkey}';\n";
+				$sql_content .= "INSERT INTO `{$usermeta_table}` (`user_id`, `meta_key`, `meta_value`) \n";
+				$sql_content .= "SELECT `ID`, '{$mkey}', {$mval} FROM `{$users_table}` WHERE `user_login` = '{$login}' OR `user_email` = '{$email}' LIMIT 1;\n";
+			}
+
+			$sql_content .= "\n";
+		}
 
 		file_put_contents($output_file, $sql_content);
 		return filesize($output_file);

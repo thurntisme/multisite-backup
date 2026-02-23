@@ -112,7 +112,7 @@ if (!in_array($current_tab, $valid_tabs)) {
                                             <?php else: ?>
                                                 <?php foreach ($sites as $site): ?>
                                                     <label class="site-item">
-                                                        <input type="checkbox" name="selected_sites[]" value="<?php echo esc_attr($site->blog_id); ?>" class="site-checkbox">
+                                                        <input type="radio" name="selected_site" value="<?php echo esc_attr($site->blog_id); ?>" class="site-checkbox">
                                                         <div class="site-info">
                                                             <strong><?php echo esc_html(get_blog_option($site->blog_id, 'blogname')); ?></strong>
                                                             <span class="site-url"><?php echo esc_html($site->domain . $site->path); ?></span>
@@ -123,10 +123,7 @@ if (!in_array($current_tab, $valid_tabs)) {
                                         </div>
                                     </div>
                                     <p class="description">
-                                        Select which sites to include in the backup. 
-                                        <?php if (!empty($sites)): ?>
-                                            <strong>All sites are selected by default.</strong> Uncheck any sites you don't want to backup.
-                                        <?php endif; ?>
+                                        Select exactly one site to include in the backup.
                                     </p>
                                 </td>
                             </tr>

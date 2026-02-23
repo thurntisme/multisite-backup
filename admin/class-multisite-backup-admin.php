@@ -285,11 +285,17 @@ class Multisite_Backup_Admin
 		}
 
 		// Validate and sanitize input
-		$selected_sites = isset($_POST['selected_sites']) ? array_map('intval', $_POST['selected_sites']) : [];
+		$selected_sites = [];
+		if (isset($_POST['selected_site'])) {
+			$selected_sites = [intval($_POST['selected_site'])];
+		} elseif (isset($_POST['selected_sites'])) {
+			$selected_sites = array_map('intval', (array) $_POST['selected_sites']);
+			$selected_sites = array_slice($selected_sites, 0, 1);
+		}
 		$backup_type = sanitize_text_field($_POST['backup_type']);
 
 		if (empty($selected_sites)) {
-			wp_send_json_error(['message' => 'Please select at least one site to backup.']);
+			wp_send_json_error(['message' => 'Please select one site to backup.']);
 		}
 
 		// Create backup

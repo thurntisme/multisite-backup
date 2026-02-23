@@ -53,26 +53,13 @@
 			}
 		});
 		
-		// Individual site checkbox (Select All functionality removed)
-		$('.site-checkbox').on('change', function() {
-			// No longer need to sync with select all checkbox
-		});
+		// Individual site selection (radio)
+		$('.site-checkbox').on('change', function() {});
 		
-		// Auto-select all sites by default for backup creation (user can uncheck if needed)
+		// Auto-select first site by default for backup creation
 		$(document).ready(function() {
-			if ($('#create-backup-form').length && $('.site-checkbox').length > 0) {
-				// Only auto-select if no sites are currently selected
-				if ($('.site-checkbox:checked').length === 0) {
-					$('.site-checkbox').prop('checked', true);
-					
-					// Add a subtle visual indicator that sites were auto-selected
-					setTimeout(function() {
-						$('.site-item').addClass('auto-selected');
-						setTimeout(function() {
-							$('.site-item').removeClass('auto-selected');
-						}, 2000);
-					}, 500);
-				}
+			if ($('#create-backup-form').length && $('.site-checkbox').length > 0 && $('.site-checkbox:checked').length === 0) {
+				$('.site-checkbox').first().prop('checked', true);
 			}
 		});
 		
@@ -93,8 +80,8 @@
 			var $form = $(this);
 			
 			// Validate form
-			var allSiteCheckboxes = $form.find('input[name="selected_sites[]"]');
-			var selectedSites = $form.find('input[name="selected_sites[]"]:checked');
+			var allSiteCheckboxes = $form.find('input[name="selected_site"]');
+			var selectedSite = $form.find('input[name="selected_site"]:checked');
 			
 			// Check if there are any site checkboxes at all
 			if (allSiteCheckboxes.length === 0) {
@@ -108,11 +95,11 @@
 			}
 			
 			// Check if user selected any sites
-			if (selectedSites.length === 0) {
+			if (selectedSite.length === 0) {
 				Swal.fire({
 					icon: 'warning',
 					title: 'No Sites Selected',
-					text: 'Please select at least one site to backup from the list below.',
+					text: 'Please select one site to backup from the list below.',
 					confirmButtonColor: '#0073aa'
 				});
 				return false;
@@ -123,13 +110,12 @@
 			var backupTypeText = $form.find('#backup_type option:selected').text();
 			
 			// Build sites list for confirmation
-			var sitesList = [];
-			selectedSites.each(function() {
-				var siteItem = $(this).closest('.site-item');
+			var sitesList = (function() {
+				var siteItem = selectedSite.closest('.site-item');
 				var siteName = siteItem.find('.site-info strong').text();
 				var siteUrl = siteItem.find('.site-url').text();
-				sitesList.push('<li><strong>' + siteName + '</strong><br><small>' + siteUrl + '</small></li>');
-			});
+				return ['<li><strong>' + siteName + '</strong><br><small>' + siteUrl + '</small></li>'];
+			})();
 			
 			// Build export details based on backup type
 			var exportDetails = [];
@@ -152,7 +138,7 @@
 					<div style="text-align: left; margin: 20px 0;">
 						<h4 style="margin-bottom: 10px; color: #0073aa;">📦 Backup Type: ${backupTypeText}</h4>
 						
-						<h4 style="margin: 20px 0 10px 0; color: #0073aa;">🌐 Sites to Export (${selectedSites.length}):</h4>
+						<h4 style="margin: 20px 0 10px 0; color: #0073aa;">🌐 Site to Export (1):</h4>
 						<ul style="max-height: 150px; overflow-y: auto; padding-left: 20px; margin: 10px 0;">
 							${sitesList.join('')}
 						</ul>

@@ -174,7 +174,7 @@ if (!in_array($current_tab, $valid_tabs)) {
                                                 <?php echo esc_html(ucfirst($backup['type'])); ?>
                                             </span>
                                         </td>
-                                        <td><?php echo esc_html($backup['site_count']); ?> sites</td>
+                                    <td><?php echo esc_html(isset($backup['sites_paths']) ? $backup['sites_paths'] : ''); ?></td>
                                         <td><?php echo esc_html(size_format($backup['size'])); ?></td>
                                         <td>
                                             <span class="status status-<?php echo esc_attr($backup['status']); ?>">
@@ -307,6 +307,28 @@ function multisite_backup_get_history() {
     }
     
     foreach ($backups as $backup_id => $backup_data) {
+        $paths = [];
+        if (isset($backup_data['sites']) && is_array($backup_data['sites'])) {
+            foreach ($backup_data['sites'] as $sid) {
+                $path = '';
+                if (function_exists('get_site')) {
+                    $site = get_site($sid);
+                    if ($site && isset($site->path)) {
+                        $path = $site->path;
+                    }
+                }
+                if ($path === '') {
+                    $siteurl = get_blog_option($sid, 'siteurl');
+                    if ($siteurl) {
+                        $p = parse_url($siteurl, PHP_URL_PATH);
+                        $path = $p ? $p : '/';
+                    } else {
+                        $path = '/';
+                    }
+                }
+                $paths[] = $path;
+            }
+        }
         $formatted_backups[] = [
             'id' => $backup_data['id'],
             'timestamp' => $backup_data['timestamp'],
@@ -314,7 +336,8 @@ function multisite_backup_get_history() {
             'site_count' => count($backup_data['sites']),
             'size' => isset($backup_data['size']) ? $backup_data['size'] : 1024 * 1024 * 10,
             'status' => $backup_data['status'],
-            'download_url' => isset($backup_data['filename']) ? rtrim($base_url, '/'). '/' . $backup_data['filename'] : '#'
+            'download_url' => isset($backup_data['filename']) ? rtrim($base_url, '/'). '/' . $backup_data['filename'] : '#',
+            'sites_paths' => implode(', ', $paths)
         ];
     }
     

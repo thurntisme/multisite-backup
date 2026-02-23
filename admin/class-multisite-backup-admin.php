@@ -690,8 +690,6 @@ class Multisite_Backup_Admin
 			'backup_date' => current_time('mysql'),
 			'backup_timestamp' => time(),
 			'wordpress_version' => get_bloginfo('version'),
-			'sites_included' => $selected_sites,
-			'sites_count' => count($selected_sites),
 			'database_prefix' => $wpdb->prefix,
 			'multisite' => is_multisite(),
 			'backup_type' => $backup_type,
@@ -816,9 +814,9 @@ class Multisite_Backup_Admin
 			}
 
 			if ($file->isDir()) {
-				$zip->addEmptyDir($relative_path);
+				$zip->addEmptyDir($normalized_rel);
 			} else {
-				$zip->addFile($file_path, $relative_path);
+				$zip->addFile($file_path, $normalized_rel);
 			}
 		}
 
@@ -1045,7 +1043,7 @@ class Multisite_Backup_Admin
 				'format_valid' => false,
 				'backup_type' => 'unknown',
 				'components' => [],
-				'sites_count' => 0,
+				'sites_count' => 1,
 				'backup_date' => null,
 				'wordpress_version' => null,
 				'warnings' => [],
@@ -1059,9 +1057,10 @@ class Multisite_Backup_Admin
 			$backup_info = null;
 			$files_found = [];
 			$total_files = 0;
+			// Single-site default; no need to track site-specific SQL names
 
 			for ($i = 0; $i < $zip->numFiles; $i++) {
-				$filename = $zip->getNameIndex($i);
+				$filename = str_replace('\\', '/', $zip->getNameIndex($i));
 				$total_files++;
 
 				// Skip directories (they end with /)
@@ -1082,9 +1081,10 @@ class Multisite_Backup_Admin
 				// Check for database directory and files
 				if (strpos($filename, 'database/') === 0) {
 					// Only count as having database if we find actual SQL files, not just the directory
-					if (pathinfo($filename, PATHINFO_EXTENSION) === 'sql') {
+					if (strtolower(pathinfo($filename, PATHINFO_EXTENSION)) === 'sql') {
 						$has_database = true;
-						$database_files[] = basename($filename);
+						$base = basename($filename);
+						$database_files[] = $base;
 					}
 				}
 
@@ -1117,11 +1117,10 @@ class Multisite_Backup_Admin
 				$scan_results['errors'][] = 'Invalid backup format: No recognizable backup structure found';
 			}
 
-			// Extract backup information
+			// Extract backup information (do not modify sites_count; default is 1)
 			if ($backup_info) {
 				$scan_results['backup_date'] = $backup_info['backup_date'] ?? null;
 				$scan_results['wordpress_version'] = $backup_info['wordpress_version'] ?? null;
-				$scan_results['sites_count'] = count($backup_info['sites_included'] ?? []);
 
 				// Check WordPress version compatibility
 				$current_wp_version = get_bloginfo('version');

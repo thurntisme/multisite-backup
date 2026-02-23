@@ -197,23 +197,19 @@ function multisite_backup_import_backup($backup_file)
  */
 function multisite_backup_get_import_history()
 {
-    // Placeholder implementation
-    return [
-        [
-            'id' => 1,
-            'timestamp' => time() - 86400,
-            'filename' => 'backup_full_2024-12-10_14-30-25.zip',
-            'mode' => 'merge',
-
-            'status' => 'completed'
-        ],
-        [
-            'id' => 2,
-            'timestamp' => time() - 172800,
-            'filename' => 'backup_database_2024-12-08_10-15-30.zip',
-            'mode' => 'replace',
-
-            'status' => 'failed'
-        ]
-    ];
+    $imports = get_option('multisite_backup_import_history', []);
+    $formatted = [];
+    foreach ($imports as $import_id => $data) {
+        $formatted[] = [
+            'id' => isset($data['id']) ? $data['id'] : $import_id,
+            'timestamp' => isset($data['timestamp']) ? $data['timestamp'] : time(),
+            'filename' => isset($data['filename']) ? $data['filename'] : '',
+            'mode' => isset($data['mode']) ? $data['mode'] : '',
+            'status' => isset($data['status']) ? $data['status'] : 'completed'
+        ];
+    }
+    usort($formatted, function ($a, $b) {
+        return $b['timestamp'] - $a['timestamp'];
+    });
+    return $formatted;
 }

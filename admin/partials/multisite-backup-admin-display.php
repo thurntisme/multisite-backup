@@ -158,6 +158,14 @@ if (!in_array($current_tab, $valid_tabs)) {
                     <h2 class="hndle">Backup History</h2>
                 </div>
                 <div class="inside">
+                    <?php
+                    $per_page = 10;
+                    $current_page_num = isset($_GET['history_page']) ? max(1, intval($_GET['history_page'])) : 1;
+                    $history_page = multisite_backup_get_history_page($current_page_num, $per_page);
+                    $backup_history = $history_page['items'];
+                    $total_items = $history_page['total'];
+                    $total_pages = max(1, (int) ceil($total_items / $per_page));
+                    ?>
                     <?php if (empty($backup_history)): ?>
                         <p>No backups found. <a href="#backup-create" class="nav-tab-link" data-tab="backup-create">Create your first backup</a>.</p>
                     <?php else: ?>
@@ -196,6 +204,39 @@ if (!in_array($current_tab, $valid_tabs)) {
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
+                        <?php if ($total_pages > 1): ?>
+                            <div class="tablenav">
+                                <div class="tablenav-pages">
+                                    <?php
+                                    $base_url = add_query_arg(array('tab' => 'backup-history'), admin_url('admin.php?page=multisite-backup'));
+                                    $prev_page = max(1, $current_page_num - 1);
+                                    $next_page = min($total_pages, $current_page_num + 1);
+                                    ?>
+                                    <span class="displaying-num"><?php echo intval($total_items); ?> items</span>
+                                    <span class="pagination-links">
+                                        <?php if ($current_page_num > 1): ?>
+                                            <a class="first-page button" href="<?php echo esc_url(add_query_arg('history_page', 1, $base_url)); ?>">&laquo;</a>
+                                            <a class="prev-page button" href="<?php echo esc_url(add_query_arg('history_page', $prev_page, $base_url)); ?>">&lsaquo;</a>
+                                        <?php else: ?>
+                                            <span class="tablenav-pages-navspan button disabled">&laquo;</span>
+                                            <span class="tablenav-pages-navspan button disabled">&lsaquo;</span>
+                                        <?php endif; ?>
+                                        <span class="paging-input">
+                                            <span class="current-page"><?php echo intval($current_page_num); ?></span>
+                                            of
+                                            <span class="total-pages"><?php echo intval($total_pages); ?></span>
+                                        </span>
+                                        <?php if ($current_page_num < $total_pages): ?>
+                                            <a class="next-page button" href="<?php echo esc_url(add_query_arg('history_page', $next_page, $base_url)); ?>">&rsaquo;</a>
+                                            <a class="last-page button" href="<?php echo esc_url(add_query_arg('history_page', $total_pages, $base_url)); ?>">&raquo;</a>
+                                        <?php else: ?>
+                                            <span class="tablenav-pages-navspan button disabled">&rsaquo;</span>
+                                            <span class="tablenav-pages-navspan button disabled">&raquo;</span>
+                                        <?php endif; ?>
+                                    </span>
+                                </div>
+                            </div>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             </div>
@@ -354,4 +395,19 @@ function multisite_backup_get_history() {
     });
     
     return $formatted_backups;
+}
+
+function multisite_backup_get_history_page($page, $per_page) {
+    $all = multisite_backup_get_history();
+    $total = count($all);
+    $page = max(1, (int)$page);
+    $per_page = max(1, (int)$per_page);
+    $offset = ($page - 1) * $per_page;
+    $items = array_slice($all, $offset, $per_page);
+    return [
+        'items' => $items,
+        'total' => $total,
+        'page' => $page,
+        'per_page' => $per_page
+    ];
 }
